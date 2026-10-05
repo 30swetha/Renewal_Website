@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --navy-950: #070e17;
+    --navy-900: #0b192c;
+    --navy-800: #142842;
+    --navy-700: #1e3e62;
+    --navy-600: #2b5484;
+    --navy-500: #3b6ea8;
+    --navy-100: #e2eaf4;
+    --navy-50: #f0f4f9;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans antialiased selection:bg-blue-600 selection:text-white;
+  }
+}
+
+/* Custom Navy Theme helper classes */
+.bg-navy-950 { background-color: var(--navy-950); }
+.bg-navy-900 { background-color: var(--navy-900); }
+.bg-navy-800 { background-color: var(--navy-800); }
+.bg-navy-700 { background-color: var(--navy-700); }
+
+.border-navy-800 { border-color: var(--navy-800); }
+.border-navy-700 { border-color: var(--navy-700); }
+.border-navy-600 { border-color: var(--navy-600); }
+
+.text-navy-900 { color: var(--navy-900); }
+.text-navy-800 { color: var(--navy-800); }
+.text-navy-700 { color: var(--navy-700); }
+.text-navy-300 { color: #94a3b8; }
+
+/* Subtle custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.bg-navy-900 ::-webkit-scrollbar-thumb {
+  background: #1e3e62;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
