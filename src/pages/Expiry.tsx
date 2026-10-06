@@ -33,20 +33,12 @@ export const ExpiryPage: React.FC = () => {
   const todayOpps = useMemo(() => filterOpportunities(rawTodayOpps, filters), [rawTodayOpps, filters]);
   const yesterdayOpps = useMemo(() => filterOpportunities(rawYesterdayOpps, filters), [rawYesterdayOpps, filters]);
 
-  // Rows and Columns definitions (2026 Quarters followed by 2027 Quarters)
-  const rows = [
-    'Q1 2026', 
-    'Q2 2026', 
-    'Q3 2026', 
-    'Q4 2026', 
-    'Q1 2027', 
-    'Q2 2027', 
-    'Q3 2027', 
-    'Q4 2027'
-  ];
+  // Separate row definitions for 2026 and 2027
+  const rows2026 = ['Q1-2026', 'Q2-2026', 'Q3-2026', 'Q4-2026'];
+  const rows2027 = ['Q1-2027', 'Q2-2027', 'Q3-2027', 'Q4-2027'];
   const categories = ['Closed', 'Commit', 'Best Case', 'Pipeline'];
 
-  // Helper to determine the row key for an opportunity based on Fiscal Period or Close Date year/month
+  // Helper to determine the row key for an opportunity
   const getOppRowKey = (opp: SharedOpportunity): string => {
     const rawPeriod = String(
       opp.fiscal_period || 
@@ -55,39 +47,38 @@ export const ExpiryPage: React.FC = () => {
       ''
     ).trim();
 
-    // Normalize hyphenated periods
-    let p = rawPeriod
-      .replace('Q1-2026', 'Q1 2026')
-      .replace('Q2-2026', 'Q2 2026')
-      .replace('Q3-2026', 'Q3 2026')
-      .replace('Q4-2026', 'Q4 2026')
-      .replace('Q1-2027', 'Q1 2027')
-      .replace('Q2-2027', 'Q2 2027')
-      .replace('Q3-2027', 'Q3 2027')
-      .replace('Q4-2027', 'Q4 2027');
+    let p = rawPeriod;
+    if (p === 'Q1 2026') p = 'Q1-2026';
+    if (p === 'Q2 2026') p = 'Q2-2026';
+    if (p === 'Q3 2026') p = 'Q3-2026';
+    if (p === 'Q4 2026') p = 'Q4-2026';
 
-    if (rows.includes(p)) {
+    if (p === 'Q1 2027') p = 'Q1-2027';
+    if (p === 'Q2 2027') p = 'Q2-2027';
+    if (p === 'Q3 2027') p = 'Q3-2027';
+    if (p === 'Q4 2027') p = 'Q4-2027';
+
+    if ([...rows2026, ...rows2027].includes(p)) {
       return p;
     }
 
-    // Determine quarter from Close Date or Service End Date if year is 2027
     const closeDate = opp.close_date || opp.service_end_date || '';
     if (closeDate.includes('2027') || opp.is_slipped_to_2027) {
       const match = closeDate.match(/2027[-/](\d{1,2})/);
       if (match) {
         const month = parseInt(match[1], 10);
-        if (month >= 1 && month <= 3) return 'Q1 2027';
-        if (month >= 4 && month <= 6) return 'Q2 2027';
-        if (month >= 7 && month <= 9) return 'Q3 2027';
-        if (month >= 10 && month <= 12) return 'Q4 2027';
+        if (month >= 1 && month <= 3) return 'Q1-2027';
+        if (month >= 4 && month <= 6) return 'Q2-2027';
+        if (month >= 7 && month <= 9) return 'Q3-2027';
+        if (month >= 10 && month <= 12) return 'Q4-2027';
       }
-      return 'Q1 2027';
+      return 'Q1-2027';
     }
 
-    return 'Q4 2026';
+    return 'Q4-2026';
   };
 
-  // Pre-calculate aggregated cell metrics for Today and Yesterday
+  // Aggregated cell metrics for Today and Yesterday
   const cellData = useMemo(() => {
     const map = new Map<string, {
       todayVal: number;
@@ -99,7 +90,7 @@ export const ExpiryPage: React.FC = () => {
       opps: SharedOpportunity[];
     }>();
 
-    rows.forEach(r => {
+    [...rows2026, ...rows2027].forEach(r => {
       categories.forEach(c => {
         const key = `${r}___${c}`;
         const tOpps = todayOpps.filter(o => getOppRowKey(o) === r && o.forecast_category === c);
@@ -128,7 +119,7 @@ export const ExpiryPage: React.FC = () => {
     return map;
   }, [todayOpps, yesterdayOpps]);
 
-  // Compute maximum amount across cells for heatmap color scaling
+  // Compute maximum amount across cells for color scaling
   const maxCellAmount = useMemo(() => {
     let maxVal = 1;
     cellData.forEach((data) => {
@@ -137,10 +128,10 @@ export const ExpiryPage: React.FC = () => {
     return maxVal;
   }, [cellData]);
 
-  // Dynamic Heatmap color calculation (Darker = Higher Amount)
+  // Dynamic Heatmap color calculation
   const getHeatmapCellStyle = (val: number) => {
     if (val === 0) {
-      return { backgroundColor: '#f8fafc', color: '#94a3b8' }; // Light gray for zero
+      return { backgroundColor: '#f8fafc', color: '#94a3b8' };
     }
 
     const ratio = Math.min(val / maxCellAmount, 1);
@@ -174,52 +165,18 @@ export const ExpiryPage: React.FC = () => {
     };
   }, [todayOpps, yesterdayOpps]);
 
-  return (
-    <div className="space-y-6 pb-20 bg-slate-50 min-h-screen text-slate-900">
-      
-      {/* Top Header & Metric Controls */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-blue-600" />
-            <h1 className="text-xl font-black text-slate-900">Service Expiry &amp; Quarterly Heatmap</h1>
-          </div>
-          <p className="text-xs text-slate-500 max-w-2xl">
-            Distribution across 2026 and 2027 Expiry Quarters (Q1-Q4 2026 &amp; Q1-Q4 2027). Darker cell shades indicate higher ACV concentration with Today vs Yesterday deltas.
-          </p>
-        </div>
-
-        {/* Amount vs Count Toggle */}
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="text-xs font-bold text-slate-500">Metric View:</span>
-          <SegmentedControl
-            options={[
-              { id: 'amount', label: 'Amount ($)' },
-              { id: 'count', label: 'Count (#)' },
-            ]}
-            value={metricMode}
-            onChange={(val: any) => setMetricMode(val)}
-          />
-        </div>
-      </div>
-
-      {/* Global Filter Bar */}
-      <GlobalFilterBar
-        filters={filters}
-        onChange={setFilters}
-        dataset={rawTodayOpps}
-      />
-
-      {/* Heatmap Grid Matrix Container */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+  // Helper render function for Heatmap Table
+  const renderHeatmapTable = (tableRows: string[], title: string, subtitle: string, is2027Table: boolean = false) => {
+    return (
+      <div className={`bg-white p-6 rounded-3xl border ${is2027Table ? 'border-amber-200 shadow-xs' : 'border-slate-200 shadow-sm'} space-y-4`}>
         
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
           <div>
-            <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-              <Layers className="h-4 w-4 text-blue-600" />
-              <span>Expiry Quarters Heatmap (2026 &amp; 2027 Quarters)</span>
+            <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
+              <Layers className={`h-4 w-4 ${is2027Table ? 'text-amber-600' : 'text-blue-600'}`} />
+              <span>{title}</span>
             </h3>
-            <p className="text-xs text-slate-500">Click any cell to inspect itemized contract details</p>
+            <p className="text-xs text-slate-500">{subtitle}</p>
           </div>
 
           <div className="flex items-center gap-2 text-xs">
@@ -238,7 +195,7 @@ export const ExpiryPage: React.FC = () => {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-700">
                 <th className="py-3 px-4 text-left font-black text-xs uppercase tracking-wider text-slate-500">
-                  Fiscal Quarter
+                  QUARTER
                 </th>
                 {categories.map(cat => (
                   <th key={cat} className="py-3 px-4 font-black text-xs uppercase tracking-wider text-slate-800">
@@ -246,29 +203,28 @@ export const ExpiryPage: React.FC = () => {
                   </th>
                 ))}
                 <th className="py-3 px-4 font-black text-xs uppercase tracking-wider text-slate-900 bg-slate-100">
-                  Row Total
+                  QUARTER TOTAL
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {rows.map(rKey => {
-                const is2027 = rKey.includes('2027');
+              {tableRows.map(rKey => {
                 let rowTotalVal = 0;
                 let rowTotalDelta = 0;
                 let rowTotalCount = 0;
                 let rowTotalCountDelta = 0;
 
                 return (
-                  <tr key={rKey} className={is2027 ? 'bg-amber-50/20' : ''}>
+                  <tr key={rKey} className={is2027Table ? 'bg-amber-50/20' : ''}>
                     {/* Row Header Label */}
                     <td className={`py-4 px-4 text-left font-black text-xs ${
-                      is2027 ? 'bg-amber-100/60 text-amber-950 font-black' : 'bg-slate-50 text-slate-900'
+                      is2027Table ? 'bg-amber-100/60 text-amber-950 font-black' : 'bg-slate-50 text-slate-900'
                     }`}>
                       <div className="flex items-center gap-1.5">
                         <span>{rKey}</span>
-                        {is2027 && (
+                        {is2027Table && (
                           <span className="px-2 py-0.5 bg-amber-200/80 text-amber-900 rounded-md text-[10px] font-mono uppercase font-extrabold">
-                            2027 FY
+                            2027
                           </span>
                         )}
                       </div>
@@ -360,35 +316,88 @@ export const ExpiryPage: React.FC = () => {
                   </tr>
                 );
               })}
-
-              {/* Aggregated Note on 2027 Quarters below Q4 2027 */}
-              <tr className="bg-amber-50/80 border-t-2 border-amber-300">
-                <td colSpan={6} className="p-4 text-left">
-                  <div className="flex items-start gap-2.5 text-xs text-amber-950">
-                    <AlertTriangle className="h-4.5 w-4.5 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="font-bold">
-                        <strong className="font-black text-amber-900 uppercase tracking-wide">Summary Note for 2027 Quarters:</strong>{' '}
-                        Total 2027 ACV across Q1–Q4 2027 stands at <strong className="font-black text-slate-900 text-sm">{formatCurrencyM(slippageMetrics.totalAcv)}</strong> across <strong className="font-extrabold text-slate-900">{slippageMetrics.totalCount} opportunities</strong>
-                        {slippageMetrics.acvDelta !== 0 && (
-                          <span className={`ml-1 font-mono font-bold ${slippageMetrics.acvDelta > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                            ({slippageMetrics.acvDelta > 0 ? '+' : ''}{formatCurrencyM(slippageMetrics.acvDelta)} vs yesterday)
-                          </span>
-                        )}.
-                      </p>
-                      <p className="text-[11.5px] text-amber-800">
-                        Includes <strong className="font-black text-blue-700">{formatCurrencyM(slippageMetrics.commitAcv)}</strong> in <strong className="font-bold">Commit</strong> forecast category across {slippageMetrics.commitCount} contracts with close dates in 2027.
-                      </p>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-
             </tbody>
           </table>
         </div>
 
+        {/* 2027 Slippage Note if rendered inside 2027 Table */}
+        {is2027Table && (
+          <div className="bg-amber-50/80 border-t-2 border-amber-300 p-4 text-left rounded-b-2xl">
+            <div className="flex items-start gap-2.5 text-xs text-amber-950">
+              <AlertTriangle className="h-4.5 w-4.5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold">
+                  <strong className="font-black text-amber-900 uppercase tracking-wide">Summary Note for 2027 Quarters:</strong>{' '}
+                  Total 2027 ACV across Q1–Q4 2027 stands at <strong className="font-black text-slate-900 text-sm">{formatCurrencyM(slippageMetrics.totalAcv)}</strong> across <strong className="font-extrabold text-slate-900">{slippageMetrics.totalCount} opportunities</strong>
+                  {slippageMetrics.acvDelta !== 0 && (
+                    <span className={`ml-1 font-mono font-bold ${slippageMetrics.acvDelta > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                      ({slippageMetrics.acvDelta > 0 ? '+' : ''}{formatCurrencyM(slippageMetrics.acvDelta)} vs yesterday)
+                    </span>
+                  )}.
+                </p>
+                <p className="text-[11.5px] text-amber-800">
+                  Includes <strong className="font-black text-blue-700">{formatCurrencyM(slippageMetrics.commitAcv)}</strong> in <strong className="font-bold">Commit</strong> forecast category across {slippageMetrics.commitCount} contracts with close dates in 2027.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6 pb-20 bg-slate-50 min-h-screen text-slate-900">
+      
+      {/* Top Header & Metric Controls */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-blue-600" />
+            <h1 className="text-xl font-black text-slate-900">Service Expiry &amp; Quarterly Heatmap</h1>
+          </div>
+          <p className="text-xs text-slate-500 max-w-2xl">
+            Distribution across 2026 and 2027 Expiry Quarters presented in separate tables. Darker cell shades indicate higher ACV concentration with Today vs Yesterday deltas.
+          </p>
+        </div>
+
+        {/* Amount vs Count Toggle */}
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-xs font-bold text-slate-500">Metric View:</span>
+          <SegmentedControl
+            options={[
+              { id: 'amount', label: 'Amount ($)' },
+              { id: 'count', label: 'Count (#)' },
+            ]}
+            value={metricMode}
+            onChange={(val: any) => setMetricMode(val)}
+          />
+        </div>
+      </div>
+
+      {/* Global Filter Bar */}
+      <GlobalFilterBar
+        filters={filters}
+        onChange={setFilters}
+        dataset={rawTodayOpps}
+      />
+
+      {/* TABLE 1: 2026 Expiry Quarter vs Forecast Category Heatmap Grid */}
+      {renderHeatmapTable(
+        rows2026,
+        'Expiry Quarter vs Forecast Category Heatmap Grid (2026)',
+        'Quarterly distribution across Q1-2026, Q2-2026, Q3-2026, and Q4-2026',
+        false
+      )}
+
+      {/* TABLE 2: 2027 Expiry & Slippage Heatmap Grid (Separate Table) */}
+      {renderHeatmapTable(
+        rows2027,
+        '2027 Expiry & Slippage Heatmap Grid',
+        'Quarterly distribution for contracts expiring or closing in 2027 (Q1-2027 to Q4-2027)',
+        true
+      )}
 
       {/* Cell Opportunities Detail Modal */}
       {activeCellModal && (
