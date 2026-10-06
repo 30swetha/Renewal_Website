@@ -6,7 +6,6 @@ import {
   Calendar, 
   ShieldCheck, 
   Globe, 
-  FileText, 
   Search, 
   Sun, 
   Moon, 
@@ -47,15 +46,15 @@ export const AppShell: React.FC = () => {
     return () => window.removeEventListener('open-command-palette', handler);
   }, []);
 
-  // Clean Navigation Items (AI Copilot, Predictive Insights, Snapshots History REMOVED as requested)
+  // Clean Top Navigation Tabs (Overview, Expiry Heatmap, Approval Funnel, Business Unit, Region, Q4 FY26, Data)
   const navItems = [
-    { label: 'Renewals & Comparison Hub', path: '/renewals-hub', icon: FileSpreadsheet },
-    { label: 'Overview ("What Changed")', path: '/dashboard', icon: Layers },
+    { label: 'Overview', path: '/dashboard', icon: Layers },
     { label: 'Expiry Heatmap', path: '/expiry', icon: Calendar },
-    { label: 'Approvals Funnel', path: '/approvals', icon: ShieldCheck },
-    { label: 'Business Units', path: '/business-units', icon: BarChart2 },
-    { label: 'Regions & Sub-Regions', path: '/regions', icon: Globe },
-    { label: 'Explore Portfolio', path: '/explore', icon: FileText },
+    { label: 'Approval Funnel', path: '/approvals', icon: ShieldCheck },
+    { label: 'Business Unit', path: '/business-units', icon: BarChart2 },
+    { label: 'Region', path: '/regions', icon: Globe },
+    { label: 'Q4 FY26', path: '/q4-fy26', icon: Sparkles },
+    { label: 'Data', path: '/renewals-hub', icon: FileSpreadsheet },
   ];
 
   if (loading) {

@@ -7,6 +7,7 @@ import ApprovalsPage from './pages/Approvals';
 import BusinessUnitsPage from './pages/BusinessUnits';
 import RegionsPage from './pages/Regions';
 import ExplorePage from './pages/Explore';
+import Q4FY26Page from './pages/Q4FY26';
 import { Login } from './pages/Login';
 
 export function App() {
@@ -17,13 +18,14 @@ export function App() {
 
         {/* App Shell Protected Routes */}
         <Route element={<AppShell />}>
-          <Route path="/" element={<Navigate to="/renewals-hub" replace />} />
-          <Route path="/renewals-hub" element={<RenewalsSummaryDashboard />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<OverviewPage />} />
           <Route path="/expiry" element={<ExpiryPage />} />
           <Route path="/approvals" element={<ApprovalsPage />} />
           <Route path="/business-units" element={<BusinessUnitsPage />} />
           <Route path="/regions" element={<RegionsPage />} />
+          <Route path="/q4-fy26" element={<Q4FY26Page />} />
+          <Route path="/renewals-hub" element={<RenewalsSummaryDashboard />} />
           <Route path="/explore" element={<ExplorePage />} />
         </Route>
 
