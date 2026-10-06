@@ -97,7 +97,7 @@ function generateMockOppsForDate(
     }
   } else {
     // Starter generation
-    const quarters = ['Q1 2026', 'Q2 2026', 'Q3 2026', 'Q4 2026'];
+    const quarters = ['Q1 2026', 'Q2 2026', 'Q3 2026', 'Q4 2026', 'Q1 2027', 'Q2 2027', 'Q3 2027', 'Q4 2027'];
     const avgAcv = targetAcv / targetCount;
 
     for (let i = 0; i < targetCount; i++) {
@@ -108,16 +108,18 @@ function generateMockOppsForDate(
       const reg = regions[i % regions.length];
       const bu = bus[i % bus.length];
 
-      const serviceStart = '2026-01-01';
-      const serviceEnd = '2026-12-31';
+      const serviceStart = q.includes('2027') ? '2027-01-01' : '2026-01-01';
+      const serviceEnd = q.includes('2027') ? '2027-12-31' : '2026-12-31';
+      
       let closeDate = '2026-11-15';
-      if (q === 'Q4 2026' && i % 5 === 0) {
-        closeDate = '2027-01-20';
-      }
+      if (q === 'Q1 2027') closeDate = '2027-02-15';
+      if (q === 'Q2 2027') closeDate = '2027-05-20';
+      if (q === 'Q3 2027') closeDate = '2027-08-10';
+      if (q === 'Q4 2027') closeDate = '2027-11-12';
 
       let acv = Math.round(avgAcv * (0.4 + (i % 10) * 0.15));
       if (q === 'Q4 2026') {
-        acv = Math.round((41.82e6 / (targetCount / 4)) * (0.5 + (i % 8) * 0.12));
+        acv = Math.round((41.82e6 / (targetCount / 8)) * (0.5 + (i % 8) * 0.12));
       }
 
       result.push({

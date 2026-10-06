@@ -10,8 +10,8 @@ import {
   CheckCircle2,
   XCircle
 } from 'lucide-react';
-import { db, type OpportunitySnapshotRecord } from '../../lib/database';
-import { formatCurrencyM } from '../../lib/sharedDataLayer';
+import { db } from '../../lib/database';
+import { formatCurrencyM, getSharedDataset } from '../../lib/sharedDataLayer';
 import { Badge } from '../ui/Badge';
 import { OpportunityDrawer } from '../ui/OpportunityDrawer';
 
@@ -34,6 +34,7 @@ export interface MovementItem {
   }[];
 }
 
+
 interface ForecastCategoryMovementTableProps {
   todayDate?: string;
   yesterdayDate?: string;
@@ -48,14 +49,21 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
   const [activeModalRow, setActiveModalRow] = useState<MovementItem | null>(null);
   const [drawerOppId, setDrawerOppId] = useState<string | null>(null);
 
-  // Fetch opportunities from local DB
-  const todayOpps = useMemo(() => db.getOpportunitiesForDate(todayDate), [todayDate]);
-  const yesterdayOpps = useMemo(() => db.getOpportunitiesForDate(yesterdayDate), [yesterdayDate]);
+  // Fetch opportunities from local DB with fallback to shared data layer
+  const todayOpps = useMemo(() => {
+    const opps = db.getOpportunitiesForDate(todayDate);
+    return opps.length > 0 ? opps : getSharedDataset(todayDate);
+  }, [todayDate]);
+
+  const yesterdayOpps = useMemo(() => {
+    const opps = db.getOpportunitiesForDate(yesterdayDate);
+    return opps.length > 0 ? opps : getSharedDataset(yesterdayDate);
+  }, [yesterdayDate]);
 
   // Handle case where yesterday's data is missing
   const hasYesterdayData = yesterdayOpps.length > 0;
 
-  // Process today vs yesterday forecast category movements
+  // Process today vs yesterday forecast category movements dynamically (Positive vs Negative)
   const { positiveRows, negativeRows, positiveNet, negativeNet } = useMemo(() => {
     if (!hasYesterdayData) {
       return {
@@ -66,24 +74,43 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
       };
     }
 
-    const yesterdayMap = new Map<string, OpportunitySnapshotRecord>();
+    const yesterdayMap = new Map<string, any>();
     yesterdayOpps.forEach(o => yesterdayMap.set(o.opportunity_id, o));
 
-    // Define standard movement definitions
-    const posDefs = [
-      { id: 'commit_to_closed', label: 'Commit to Closed', match: (f: string, t: string) => f === 'Commit' && t === 'Closed' },
-      { id: 'bestcase_to_commit', label: 'Best Case to Commit', match: (f: string, t: string) => f === 'Best Case' && t === 'Commit' },
-      { id: 'pipeline_to_bestcase', label: 'Pipeline to Best Case', match: (f: string, t: string) => f === 'Pipeline' && t === 'Best Case' },
-      { id: 'pipeline_to_commit', label: 'Pipeline to Commit', match: (f: string, t: string) => f === 'Pipeline' && t === 'Commit' },
-      { id: 'other_to_closed', label: 'Any move to Closed', match: (f: string, t: string) => t === 'Closed' && f !== 'Commit' },
+    const todayMap = new Map<string, any>();
+    todayOpps.forEach(o => todayMap.set(o.opportunity_id, o));
+
+    const categoryRank: Record<string, number> = {
+      'Closed': 4,
+      'Commit': 3,
+      'Best Case': 2,
+      'Pipeline': 1,
+    };
+
+    // Standard Positive Movement definitions (Left Side)
+    const posDefs: Array<{ id: string; label: string; match: (f: string, t: string, d: number) => boolean }> = [
+      { id: 'commit_to_closed', label: 'Commit to Closed', match: (f, t) => f === 'Commit' && t === 'Closed' },
+      { id: 'bestcase_to_commit', label: 'Best Case to Commit', match: (f, t) => f === 'Best Case' && t === 'Commit' },
+      { id: 'pipeline_to_bestcase', label: 'Pipeline to Best Case', match: (f, t) => f === 'Pipeline' && t === 'Best Case' },
+      { id: 'pipeline_to_commit', label: 'Pipeline to Commit', match: (f, t) => f === 'Pipeline' && t === 'Commit' },
+      { id: 'bestcase_to_closed', label: 'Best Case to Closed', match: (f, t) => f === 'Best Case' && t === 'Closed' },
+      { id: 'pipeline_to_closed', label: 'Pipeline to Closed', match: (f, t) => f === 'Pipeline' && t === 'Closed' },
+      { id: 'other_to_closed', label: 'Any Move to Closed', match: (f, t) => t === 'Closed' && f !== 'Commit' && f !== 'Best Case' && f !== 'Pipeline' },
+      { id: 'new_deals', label: 'New Deals Added Today', match: (f) => f === 'New Deal' || f === 'N/A' },
+      { id: 'acv_increase', label: 'ACV Amount Increased', match: (f, t, d) => f === t && d > 0.01 },
     ];
 
-    const negDefs = [
-      { id: 'commit_to_bestcase', label: 'Commit to Best Case', match: (f: string, t: string) => f === 'Commit' && t === 'Best Case' },
-      { id: 'bestcase_to_pipeline', label: 'Best Case to Pipeline', match: (f: string, t: string) => f === 'Best Case' && t === 'Pipeline' },
-      { id: 'commit_to_pipeline', label: 'Commit to Pipeline', match: (f: string, t: string) => f === 'Commit' && t === 'Pipeline' },
-      { id: 'closed_to_commit', label: 'Closed to Commit', match: (f: string, t: string) => f === 'Closed' && t === 'Commit' },
-      { id: 'other_from_closed', label: 'Any move out of Closed', match: (f: string, t: string) => f === 'Closed' && t !== 'Commit' },
+    // Standard Negative Movement definitions (Right Side)
+    const negDefs: Array<{ id: string; label: string; match: (f: string, t: string, d: number) => boolean }> = [
+      { id: 'commit_to_bestcase', label: 'Commit to Best Case', match: (f, t) => f === 'Commit' && t === 'Best Case' },
+      { id: 'bestcase_to_pipeline', label: 'Best Case to Pipeline', match: (f, t) => f === 'Best Case' && t === 'Pipeline' },
+      { id: 'commit_to_pipeline', label: 'Commit to Pipeline', match: (f, t) => f === 'Commit' && t === 'Pipeline' },
+      { id: 'closed_to_commit', label: 'Closed to Commit', match: (f, t) => f === 'Closed' && t === 'Commit' },
+      { id: 'closed_to_bestcase', label: 'Closed to Best Case', match: (f, t) => f === 'Closed' && t === 'Best Case' },
+      { id: 'closed_to_pipeline', label: 'Closed to Pipeline', match: (f, t) => f === 'Closed' && t === 'Pipeline' },
+      { id: 'other_from_closed', label: 'Any Move Out of Closed', match: (f, t) => f === 'Closed' && t !== 'Commit' && t !== 'Best Case' && t !== 'Pipeline' },
+      { id: 'removed_deals', label: 'Deals Slipped / Dropped', match: (_, t) => t === 'Removed' || t === 'Slipped Out' },
+      { id: 'acv_decrease', label: 'ACV Amount Decreased', match: (f, t, d) => f === t && d < -0.01 },
     ];
 
     const posItemsMap = new Map<string, MovementItem>();
@@ -92,13 +119,20 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
     const negItemsMap = new Map<string, MovementItem>();
     negDefs.forEach(d => negItemsMap.set(d.id, { id: d.id, label: d.label, fromCat: '', toCat: '', count: 0, totalAcv: 0, opps: [] }));
 
-    // Track all changes
+    const extraPosMap = new Map<string, MovementItem>();
+    const extraNegMap = new Map<string, MovementItem>();
+
+    // 1. Check Today Opps against Yesterday Baseline
     todayOpps.forEach(toOpp => {
       const fromOpp = yesterdayMap.get(toOpp.opportunity_id);
-      const fromCat = fromOpp ? fromOpp.forecast_category : 'New Deal';
+      const fromCat = fromOpp ? (fromOpp.forecast_category || 'New Deal') : 'New Deal';
       const toCat = toOpp.forecast_category;
+      const acvDiff = toOpp.acv_amount - (fromOpp ? fromOpp.acv_amount : 0);
 
-      if (fromCat === toCat) return; // No category shift
+      // Skip if no category change AND no ACV change
+      if (fromOpp && fromCat === toCat && Math.abs(acvDiff) <= 0.01) {
+        return;
+      }
 
       const oppDetail = {
         opportunity_id: toOpp.opportunity_id,
@@ -108,38 +142,79 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
         acv_amount: toOpp.acv_amount,
         fromCategory: fromCat,
         toCategory: toCat,
-        acvDiff: toOpp.acv_amount - (fromOpp ? fromOpp.acv_amount : 0),
+        acvDiff,
       };
 
-      // Match Positive
-      let matchedPos = false;
+      // Match Positive Rules
+      let matched = false;
       for (const d of posDefs) {
-        if (d.match(fromCat, toCat)) {
+        if (d.match(fromCat, toCat, acvDiff)) {
           const item = posItemsMap.get(d.id)!;
           item.count += 1;
-          item.totalAcv += toOpp.acv_amount;
+          item.totalAcv += (d.id === 'acv_increase' ? acvDiff : toOpp.acv_amount);
           item.opps.push(oppDetail);
-          matchedPos = true;
+          matched = true;
           break;
         }
       }
 
-      // Match Negative
-      if (!matchedPos) {
+      // Match Negative Rules
+      if (!matched) {
         for (const d of negDefs) {
-          if (d.match(fromCat, toCat)) {
+          if (d.match(fromCat, toCat, acvDiff)) {
             const item = negItemsMap.get(d.id)!;
             item.count += 1;
-            item.totalAcv += toOpp.acv_amount;
+            item.totalAcv += (d.id === 'acv_decrease' ? Math.abs(acvDiff) : toOpp.acv_amount);
             item.opps.push(oppDetail);
+            matched = true;
             break;
           }
         }
       }
+
+      // Unmatched custom transition: classify dynamically by rank or ACV diff
+      if (!matched) {
+        const fromRank = categoryRank[fromCat] || 0;
+        const toRank = categoryRank[toCat] || 0;
+        const isPos = toRank > fromRank || acvDiff > 0;
+
+        const dynId = `${fromCat}_to_${toCat}`;
+        const dynLabel = fromCat === toCat 
+          ? `${fromCat} (${acvDiff >= 0 ? 'ACV +' : 'ACV -'})` 
+          : `${fromCat} to ${toCat}`;
+
+        const targetMap = isPos ? extraPosMap : extraNegMap;
+        const existing: MovementItem = targetMap.get(dynId) || { id: dynId, label: dynLabel, fromCat, toCat, count: 0, totalAcv: 0, opps: [] as MovementItem['opps'] };
+        existing.count += 1;
+        existing.totalAcv += toOpp.acv_amount;
+        existing.opps.push(oppDetail);
+        targetMap.set(dynId, existing);
+      }
     });
 
-    const posList = Array.from(posItemsMap.values());
-    const negList = Array.from(negItemsMap.values());
+    // 2. Check Yesterday Opps missing today (Removed / Slipped Deals)
+    yesterdayOpps.forEach(fromOpp => {
+      if (!todayMap.has(fromOpp.opportunity_id)) {
+        const oppDetail = {
+          opportunity_id: fromOpp.opportunity_id,
+          opportunity_name: fromOpp.opportunity_name,
+          account_name: fromOpp.account_name,
+          region: fromOpp.region,
+          acv_amount: fromOpp.acv_amount,
+          fromCategory: fromOpp.forecast_category,
+          toCategory: 'Removed / Slipped',
+          acvDiff: -fromOpp.acv_amount,
+        };
+
+        const item = negItemsMap.get('removed_deals')!;
+        item.count += 1;
+        item.totalAcv += fromOpp.acv_amount;
+        item.opps.push(oppDetail);
+      }
+    });
+
+    const posList = [...Array.from(posItemsMap.values()), ...Array.from(extraPosMap.values())];
+    const negList = [...Array.from(negItemsMap.values()), ...Array.from(extraNegMap.values())];
 
     const pNetCount = posList.reduce((s, r) => s + r.count, 0);
     const pNetAcv = posList.reduce((s, r) => s + r.totalAcv, 0);
@@ -154,6 +229,7 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
       negativeNet: { count: nNetCount, totalAcv: nNetAcv },
     };
   }, [todayOpps, yesterdayOpps, hasYesterdayData]);
+
 
   const handleOppClick = (oppId: string) => {
     if (onSelectOpp) {
