@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Sparkles, TrendingUp, ArrowRight, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { KPITile } from '../components/ui/KPITile';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { Badge } from '../components/ui/Badge';
@@ -23,16 +22,6 @@ export const OverviewPage: React.FC = () => {
   const commitAcv = todayOpps.filter(o => o.forecast_category === 'Commit').reduce((s, o) => s + o.acv_amount, 0);
   const bestCaseAcv = todayOpps.filter(o => o.forecast_category === 'Best Case').reduce((s, o) => s + o.acv_amount, 0);
   const pipelineAcv = todayOpps.filter(o => o.forecast_category === 'Pipeline').reduce((s, o) => s + o.acv_amount, 0);
-
-  // Waterfall Chart Data
-  const waterfallData = [
-    { name: 'Yesterday ACV', amount: totalYesterdayAcv / 1e6, color: '#64748B' },
-    { name: '+ New Deals', amount: 0.85, color: '#10B981' },
-    { name: '+ Expansions', amount: 0.45, color: '#3B82F6' },
-    { name: '- Contractions', amount: -0.26, color: '#F59E0B' },
-    { name: '- Removed', amount: 0.0, color: '#EF4444' },
-    { name: 'Today ACV', amount: totalTodayAcv / 1e6, color: '#2563EB' },
-  ];
 
   // Category Movements / Sankey Data
   const categoryFlows = comparison.categoryMovement.filter(m => m.from !== m.to || m.amount > 0);
@@ -91,38 +80,8 @@ export const OverviewPage: React.FC = () => {
         <KPITile title="Pipeline ACV" value={pipelineAcv} deltaVsYesterday={-0.05e6} deltaVsLastWeek={-0.18e6} accentColor="#F59E0B" />
       </div>
 
-      {/* 3. Charts Grid: Waterfall & Category Sankey Flow */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Waterfall Chart */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="font-extrabold text-slate-900 text-sm">
-                ACV Waterfall Movement (Yesterday to Today)
-              </h3>
-              <p className="text-xs text-slate-500">Breakdown of additions, expansions, contractions & removals</p>
-            </div>
-            <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-              +$0.04M Net Growth
-            </span>
-          </div>
-
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={waterfallData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 'bold', fill: '#475569' }} stroke="#94A3B8" />
-                <YAxis tick={{ fontSize: 11, fill: '#475569' }} stroke="#94A3B8" />
-                <Tooltip formatter={(value: any) => [`$${Number(value).toFixed(2)}M`, 'Amount']} />
-                <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
-                  {waterfallData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      {/* 3. Category Sankey Flow */}
+      <div className="w-full">
 
         {/* Forecast Category Flow Movement */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">

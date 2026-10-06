@@ -1,7 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import RenewalsSummaryDashboard from './pages/RenewalsSummaryDashboard';
-import AssistantPage from './pages/AssistantPage';
+import OverviewPage from './pages/Overview';
+import ExpiryPage from './pages/Expiry';
+import ApprovalsPage from './pages/Approvals';
+import BusinessUnitsPage from './pages/BusinessUnits';
+import RegionsPage from './pages/Regions';
+import ExplorePage from './pages/Explore';
 import { Login } from './pages/Login';
 
 export function App() {
@@ -12,12 +17,17 @@ export function App() {
 
         {/* App Shell Protected Routes */}
         <Route element={<AppShell />}>
-          <Route path="/" element={<RenewalsSummaryDashboard />} />
+          <Route path="/" element={<Navigate to="/renewals-hub" replace />} />
           <Route path="/renewals-hub" element={<RenewalsSummaryDashboard />} />
-          <Route path="/assistant" element={<AssistantPage />} />
+          <Route path="/dashboard" element={<OverviewPage />} />
+          <Route path="/expiry" element={<ExpiryPage />} />
+          <Route path="/approvals" element={<ApprovalsPage />} />
+          <Route path="/business-units" element={<BusinessUnitsPage />} />
+          <Route path="/regions" element={<RegionsPage />} />
+          <Route path="/explore" element={<ExplorePage />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/renewals-hub" replace />} />
       </Routes>
     </BrowserRouter>
   );

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldCheck, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, LineChart, Line, XAxis, YAxis } from 'recharts';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { db } from '../lib/database';
 
@@ -25,16 +25,6 @@ export const ApprovalsPage: React.FC = () => {
     const amount = items.reduce((s, o) => s + o.acv_amount, 0);
     return { name: st, value: amount, count: items.length, color: colors[st] || '#64748B' };
   });
-
-  // Snapshot History Trend (Lastweek -> Yesterday -> Today)
-  const snapshots = db.getSnapshots();
-  const trendData = snapshots.map(s => {
-    const opps = db.getOpportunitiesForDate(s.snapshot_date);
-    const approved = opps.filter(o => o.approval_status.includes('Approved')).reduce((sum, o) => sum + o.acv_amount, 0) / 1e6;
-    const pending = opps.filter(o => o.approval_status.includes('Pending')).reduce((sum, o) => sum + o.acv_amount, 0) / 1e6;
-    const blank = opps.filter(o => o.approval_status === 'Blank').reduce((sum, o) => sum + o.acv_amount, 0) / 1e6;
-    return { date: s.snapshot_date, Approved: approved, Pending: pending, Blank: blank };
-  }).reverse();
 
   // Newly Changed Today Lists
   const newlyApproved = todayOpps.filter(curr => {
@@ -99,28 +89,6 @@ export const ApprovalsPage: React.FC = () => {
             </ResponsiveContainer>
           </div>
         </div>
-
-        {/* Approval Trend Line Chart */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-          <h3 className="font-extrabold text-slate-900 text-sm">
-            Snapshot Approval Velocity Trajectory ($M)
-          </h3>
-
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#475569' }} stroke="#94a3b8" />
-                <YAxis tick={{ fontSize: 11, fill: '#475569' }} stroke="#94a3b8" />
-                <Tooltip formatter={(val: any) => [`$${Number(val).toFixed(2)}M`, 'Amount']} />
-                <Legend />
-                <Line type="monotone" dataKey="Approved" stroke="#10B981" strokeWidth={3} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="Pending" stroke="#F59E0B" strokeWidth={3} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="Blank" stroke="#94A3B8" strokeWidth={2} strokeDasharray="4 4" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
       </div>
 
       {/* 3 Columns: Newly Approved, Newly Pending, Newly Rejected */}
