@@ -4,12 +4,9 @@ import {
   AlertTriangle, 
   TrendingUp, 
   TrendingDown, 
-  Layers, 
-  X
+  Layers
 } from 'lucide-react';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
-import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
-import { Badge } from '../components/ui/Badge';
 import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpportunity } from '../lib/sharedDataLayer';
 
 import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
@@ -17,10 +14,9 @@ import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilte
 export const ExpiryPage: React.FC = () => {
   const [filters, setFilters] = useState<GlobalFilterState>(INITIAL_FILTERS);
   const [metricMode, setMetricMode] = useState<'amount' | 'count'>('amount');
-  const [selectedCell, setSelectedCell] = useState<{ rowKey: string; category: string } | null>(null);
-  const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
 
   const refreshKey = useDatasetRefresh();
+
 
   // Shared dataset for Today (latest) and Yesterday
   const rawTodayOpps = useMemo(() => getSharedDataset(), [refreshKey]);
@@ -136,14 +132,8 @@ export const ExpiryPage: React.FC = () => {
     };
   }, [todayOpps, yesterdayOpps]);
 
-  // Selected cell opportunities list
-  const selectedCellData = useMemo(() => {
-    if (!selectedCell) return null;
-    const key = `${selectedCell.rowKey}___${selectedCell.category}`;
-    return cellData.get(key) || null;
-  }, [selectedCell, cellData]);
-
   return (
+
     <div className="space-y-6 pb-20 bg-slate-50 min-h-screen text-slate-900">
       
       {/* Top Header & Metric Controls */}
@@ -261,7 +251,6 @@ export const ExpiryPage: React.FC = () => {
                       rowTotalCount += cell.todayCount;
                       rowTotalCountDelta += cell.countDelta;
 
-                      const isSelected = selectedCell?.rowKey === rKey && selectedCell?.category === cat;
                       const cellStyle = getHeatmapCellStyle(metricMode === 'amount' ? cell.todayVal : cell.todayCount * 5e6);
 
                       const displayMain = metricMode === 'amount'
@@ -273,11 +262,8 @@ export const ExpiryPage: React.FC = () => {
                       return (
                         <td
                           key={cat}
-                          onClick={() => setSelectedCell({ rowKey: rKey, category: cat })}
                           style={cellStyle}
-                          className={`py-4 px-4 border border-slate-200 transition-all cursor-pointer relative group ${
-                            isSelected ? 'ring-3 ring-blue-600 z-10 scale-[1.02] shadow-md' : 'hover:opacity-90'
-                          }`}
+                          className="py-4 px-4 border border-slate-200 transition-all relative group"
                         >
                           <div className="flex flex-col items-center justify-center space-y-1">
                             {/* Main Value */}
@@ -355,94 +341,9 @@ export const ExpiryPage: React.FC = () => {
 
       </div>
 
-      {/* Selected Cell Opportunity List Table (Lists matching opportunities on cell click) */}
-      {selectedCell && selectedCellData && (
-        <div className="bg-white p-6 rounded-3xl border border-blue-300 shadow-md space-y-4 animate-in fade-in duration-150">
-          
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1 bg-blue-600 text-white font-black text-xs rounded-xl shadow-xs">
-                  {selectedCell.rowKey} &bull; {selectedCell.category}
-                </span>
-                <span className="text-xs font-extrabold text-slate-500 font-mono">
-                  {selectedCellData.opps.length} Contracts &bull; Total: {formatCurrencyM(selectedCellData.todayVal)}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">Click any opportunity row to open full drawer details</p>
-            </div>
-
-            <button
-              onClick={() => setSelectedCell(null)}
-              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer self-start sm:self-auto"
-            >
-              <X className="h-4 w-4" />
-              <span>Close List</span>
-            </button>
-          </div>
-
-          {/* Table of Cell Opportunities */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-black text-slate-700 uppercase tracking-wider">
-                  <th className="py-2.5 px-4">Opportunity Name</th>
-                  <th className="py-2.5 px-4">Region</th>
-                  <th className="py-2.5 px-4">Close Date</th>
-                  <th className="py-2.5 px-4">Forecast Category</th>
-                  <th className="py-2.5 px-4 text-right">ACV Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs font-medium">
-                {selectedCellData.opps.map(opp => (
-                  <tr
-                    key={opp.opportunity_id}
-                    onClick={() => setSelectedOppId(opp.opportunity_id)}
-                    className="hover:bg-blue-50/70 transition-colors cursor-pointer group"
-                  >
-                    <td className="py-3 px-4">
-                      <div className="font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">
-                        {opp.opportunity_name}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        {opp.opportunity_id} &bull; {opp.account_name}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-bold text-slate-700">
-                      {opp.region}
-                    </td>
-                    <td className="py-3 px-4 font-mono font-bold text-slate-600">
-                      {opp.close_date}
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge variant={
-                        opp.forecast_category === 'Closed' ? 'closed' :
-                        opp.forecast_category === 'Commit' ? 'commit' :
-                        opp.forecast_category === 'Best Case' ? 'bestcase' : 'pipeline'
-                      }>
-                        {opp.forecast_category}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4 text-right font-black font-mono text-slate-900">
-                      {formatCurrencyM(opp.acv_amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-        </div>
-      )}
-
-      {/* Opportunity History Drawer */}
-      <OpportunityDrawer
-        oppId={selectedOppId}
-        onClose={() => setSelectedOppId(null)}
-      />
-
     </div>
   );
 };
 
 export default ExpiryPage;
+
