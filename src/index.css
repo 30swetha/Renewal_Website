@@ -2,18 +2,26 @@
 
 @layer base {
   :root {
-    --navy-950: #070e17;
-    --navy-900: #0b192c;
-    --navy-800: #142842;
-    --navy-700: #1e3e62;
-    --navy-600: #2b5484;
-    --navy-500: #3b6ea8;
-    --navy-100: #e2eaf4;
-    --navy-50: #f0f4f9;
+    --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --navy-950: #0f172a;
+    --navy-900: #1e293b;
+    --navy-800: #334155;
+    --navy-700: #475569;
+    --navy-600: #64748b;
+    --navy-500: #0284c7;
+    --navy-100: #f1f5f9;
+    --navy-50: #f8fafc;
+  }
+
+  * {
+    font-family: var(--font-sans);
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased selection:bg-blue-600 selection:text-white;
+    font-family: var(--font-sans);
+    background-color: #f8fafc;
+    color: #0f172a;
+    @apply antialiased selection:bg-blue-600 selection:text-white;
   }
 }
 
