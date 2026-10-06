@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   FileSpreadsheet, 
   Download, 
+  Upload,
   Layers, 
   Grid, 
   ShieldCheck, 
@@ -12,12 +13,14 @@ import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpport
 import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
 import { DataTable, type ColumnDef } from '../components/ui/DataTable';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
+import { DailyIngestionModal } from '../components/dashboard/DailyIngestionModal';
 import { Badge } from '../components/ui/Badge';
 import { exportReconciliationExcel } from '../lib/excelExporter';
 
 export const RenewalsSummaryDashboard: React.FC = () => {
   const [filters, setFilters] = useState<GlobalFilterState>(INITIAL_FILTERS);
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
+  const [isIngestionOpen, setIsIngestionOpen] = useState<boolean>(false);
 
   // Reconciliation State
   const [selectedReconciliationPeriod, setSelectedReconciliationPeriod] = useState<string>('Q4 2026');
@@ -247,13 +250,24 @@ export const RenewalsSummaryDashboard: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleExportReconciliation}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs shadow-sm hover:shadow transition-all flex items-center gap-2 shrink-0 cursor-pointer"
-        >
-          <Download className="h-4 w-4" />
-          <span>Export Reconciliation to Excel</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <button
+            onClick={() => setIsIngestionOpen(true)}
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-2xl font-black text-xs shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer"
+            title="Upload Excel File (Renewal Comparison Tool or Summary Workbook)"
+          >
+            <Upload className="h-4 w-4" />
+            <span>Upload Data File</span>
+          </button>
+
+          <button
+            onClick={handleExportReconciliation}
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export Reconciliation to Excel</span>
+          </button>
+        </div>
       </div>
 
       {/* Global Filter Bar */}
@@ -549,6 +563,12 @@ export const RenewalsSummaryDashboard: React.FC = () => {
       <OpportunityDrawer
         oppId={selectedOppId}
         onClose={() => setSelectedOppId(null)}
+      />
+
+      {/* Daily Data Ingestion Modal */}
+      <DailyIngestionModal
+        isOpen={isIngestionOpen}
+        onClose={() => setIsIngestionOpen(false)}
       />
 
     </div>

@@ -12,14 +12,17 @@ import {
   Menu,
   BarChart2,
   FileSpreadsheet,
+  Upload,
   X
 } from 'lucide-react';
 import { CommandPalette } from '../ui/CommandPalette';
+import { DailyIngestionModal } from '../dashboard/DailyIngestionModal';
 
 export const AppShell: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [ingestionModalOpen, setIngestionModalOpen] = useState(false);
   const [asOfDate, setAsOfDate] = useState('2026-10-06');
   const [compareDate, setCompareDate] = useState('Yesterday');
   const [loading, setLoading] = useState(true);
@@ -129,6 +132,16 @@ export const AppShell: React.FC = () => {
               </select>
             </div>
 
+            {/* Prominent Upload Excel File Button */}
+            <button
+              onClick={() => setIngestionModalOpen(true)}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-black shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+              title="Upload Excel File (Renewal Comparison Tool or Summary Workbook)"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Upload Excel File</span>
+            </button>
+
             {/* Command Palette Trigger */}
             <button
               onClick={() => setCommandPaletteOpen(true)}
@@ -225,6 +238,12 @@ export const AppShell: React.FC = () => {
       <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
+      />
+
+      {/* Daily Data Ingestion Modal */}
+      <DailyIngestionModal
+        isOpen={ingestionModalOpen}
+        onClose={() => setIngestionModalOpen(false)}
       />
 
     </div>
