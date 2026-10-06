@@ -26,6 +26,7 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
 }) => {
   const todayIso = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState<string>(todayIso);
+  const [uploadMode, setUploadMode] = useState<'comparison' | 'summary'>('comparison');
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [result, setResult] = useState<FileValidationResult | null>(null);
@@ -54,7 +55,7 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
     if (!file) {
       setResult({
         success: false,
-        message: 'Please select an Excel (.xlsx, .xls) or CSV (.csv) daily data file to upload.',
+        message: 'Please select an Excel (.xlsx, .xls) or CSV (.csv) file to upload.',
       });
       return;
     }
@@ -121,21 +122,21 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 bg-navy-900 text-white flex items-center justify-between">
+        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-500/20 rounded-xl text-blue-300 ring-1 ring-blue-400/30">
               <Upload className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold leading-tight">Daily Data Ingestion Flow</h2>
-              <p className="text-xs text-slate-300">Validate columns, replace dataset & preserve yesterday's snapshot</p>
+              <h2 className="text-base font-extrabold leading-tight">Data File Ingestion Workspace</h2>
+              <p className="text-xs text-slate-300">Upload options for Renewal Comparison Datasets &amp; Summary Workbooks</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -143,6 +144,32 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
 
         {/* Content Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
+          
+          {/* Upload Mode Selector */}
+          <div className="bg-slate-100 p-1 rounded-2xl flex items-center border border-slate-200">
+            <button
+              type="button"
+              onClick={() => { setUploadMode('comparison'); setResult(null); }}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                uploadMode === 'comparison'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Renewal Comparison Tool (Raw Opps)
+            </button>
+            <button
+              type="button"
+              onClick={() => { setUploadMode('summary'); setResult(null); }}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                uploadMode === 'summary'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Renewal Expiry Summary Workbook
+            </button>
+          </div>
           {/* Step 1: Date Picker */}
           <div>
             <label className="block text-xs font-bold text-navy-900 mb-1.5 flex items-center gap-1.5">
