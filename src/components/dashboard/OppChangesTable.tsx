@@ -23,10 +23,10 @@ export const OppChangesTable: React.FC<OppChangesTableProps> = ({ oppChanges }) 
   if (!oppChanges || oppChanges.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-3">
-      <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-3 text-slate-900">
+      <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="font-extrabold text-navy-900 text-base flex items-center gap-2">
+          <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
             <Layers className="h-5 w-5 text-blue-600" />
             <span>Changes Finder: Itemized Opportunity Differences ({oppChanges.length})</span>
           </h3>
@@ -55,10 +55,10 @@ export const OppChangesTable: React.FC<OppChangesTableProps> = ({ oppChanges }) 
           <button
             key={ct}
             onClick={() => setFilterType(ct)}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               filterType === ct
                 ? 'bg-blue-600 text-white shadow-2xs'
-                : 'bg-slate-100 text-slate-600 hover:text-navy-900'
+                : 'bg-slate-100 text-slate-600 hover:text-slate-900'
             }`}
           >
             {ct} ({ct === 'All' ? oppChanges.length : oppChanges.filter(c => c.changeType === ct).length})
@@ -70,7 +70,7 @@ export const OppChangesTable: React.FC<OppChangesTableProps> = ({ oppChanges }) 
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+            <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
               <th className="py-3 px-4">Opportunity ID</th>
               <th className="py-3 px-4">Account Name</th>
               <th className="py-3 px-4">Expiry Period</th>
@@ -84,7 +84,7 @@ export const OppChangesTable: React.FC<OppChangesTableProps> = ({ oppChanges }) 
             {filtered.map((item, idx) => (
               <tr key={idx} className="hover:bg-slate-50 transition-colors">
                 <td className="py-3 px-4 font-mono font-bold text-blue-600">{item.oppId}</td>
-                <td className="py-3 px-4 font-bold text-navy-900">{item.oppName}</td>
+                <td className="py-3 px-4 font-bold text-slate-900">{item.oppName}</td>
                 <td className="py-3 px-4 text-slate-600">{item.expiryPeriod}</td>
                 <td className="py-3 px-4">
                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -101,7 +101,7 @@ export const OppChangesTable: React.FC<OppChangesTableProps> = ({ oppChanges }) 
                   </span>
                 </td>
                 <td className="py-3 px-4 text-slate-500 font-mono">{item.prevVal || '—'}</td>
-                <td className="py-3 px-4 font-bold text-navy-900 font-mono">{item.todayVal || '—'}</td>
+                <td className="py-3 px-4 font-bold text-slate-900 font-mono">{item.todayVal || '—'}</td>
                 <td className={`py-3 px-4 text-right font-bold font-mono ${
                   (item.diffAmount || 0) > 0 ? 'text-emerald-600' : (item.diffAmount || 0) < 0 ? 'text-red-600' : 'text-slate-400'
                 }`}>

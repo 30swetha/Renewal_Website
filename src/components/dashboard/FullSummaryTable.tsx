@@ -66,12 +66,12 @@ export const FullSummaryTable: React.FC<FullSummaryTableProps> = ({ summaryRows,
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden text-slate-900">
       {/* Table Toolbar */}
-      <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Table className="h-5 w-5 text-blue-600" />
-          <h3 className="font-extrabold text-navy-900 text-base">Full Expiry & Variance Summary Ledger</h3>
+          <h3 className="font-extrabold text-slate-900 text-base">Full Expiry & Variance Summary Ledger</h3>
           <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold text-xs">
             {sortedRows.length} Rows
           </span>
@@ -95,50 +95,50 @@ export const FullSummaryTable: React.FC<FullSummaryTableProps> = ({ summaryRows,
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-100/90 border-b border-slate-200 text-[11px] font-black text-navy-900 uppercase tracking-wider">
-              <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60" onClick={() => handleSort('expiryPeriod')}>
+            <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-black text-slate-900 uppercase tracking-wider">
+              <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-200" onClick={() => handleSort('expiryPeriod')}>
                 <div className="flex items-center gap-1">
                   <span>Service Expiry Period</span>
                   <ArrowUpDown className="h-3 w-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-200/60" onClick={() => handleSort('category')}>
+              <th className="py-3.5 px-4 cursor-pointer hover:bg-slate-200" onClick={() => handleSort('category')}>
                 <div className="flex items-center gap-1">
                   <span>Forecast Category</span>
                   <ArrowUpDown className="h-3 w-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/60" onClick={() => handleSort('todayAmount')}>
+              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200" onClick={() => handleSort('todayAmount')}>
                 <div className="flex items-center justify-end gap-1">
                   <span>Today Amount ($M)</span>
                   <ArrowUpDown className="h-3 w-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/60" onClick={() => handleSort('todayCount')}>
+              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200" onClick={() => handleSort('todayCount')}>
                 <div className="flex items-center justify-end gap-1">
                   <span>Today Count</span>
                   <ArrowUpDown className="h-3 w-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/60" onClick={() => handleSort('tyAmount')}>
+              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200" onClick={() => handleSort('tyAmount')}>
                 <div className="flex items-center justify-end gap-1">
                   <span>T-Y Amount ($M)</span>
                   <ArrowUpDown className="h-3 w-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/60" onClick={() => handleSort('tyCount')}>
+              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200" onClick={() => handleSort('tyCount')}>
                 <div className="flex items-center justify-end gap-1">
                   <span>T-Y Count</span>
                   <ArrowUpDown className="h-3 w-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/60" onClick={() => handleSort('tlwAmount')}>
+              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200" onClick={() => handleSort('tlwAmount')}>
                 <div className="flex items-center justify-end gap-1">
                   <span>T-LW Amount ($M)</span>
                   <ArrowUpDown className="h-3 w-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/60" onClick={() => handleSort('tlwCount')}>
+              <th className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200" onClick={() => handleSort('tlwCount')}>
                 <div className="flex items-center justify-end gap-1">
                   <span>T-LW Count</span>
                   <ArrowUpDown className="h-3 w-3 text-slate-400" />
@@ -153,15 +153,15 @@ export const FullSummaryTable: React.FC<FullSummaryTableProps> = ({ summaryRows,
                 <tr 
                   key={idx} 
                   className={`transition-colors ${
-                    isTotalRow ? 'bg-slate-100/90 font-bold border-t-2 border-slate-300' : 'hover:bg-slate-50'
+                    isTotalRow ? 'bg-slate-100 font-bold border-t-2 border-slate-300' : 'hover:bg-slate-50'
                   }`}
                 >
-                  <td className={`py-3 px-4 ${isTotalRow ? 'font-black text-navy-900' : 'font-semibold text-slate-700'}`}>
+                  <td className={`py-3 px-4 ${isTotalRow ? 'font-black text-slate-900' : 'font-semibold text-slate-700'}`}>
                     {row.expiryPeriod}
                   </td>
                   <td className="py-3 px-4">
                     {isTotalRow ? (
-                      <span className="text-navy-900 font-extrabold italic">Quarter Total</span>
+                      <span className="text-slate-900 font-extrabold italic">Quarter Total</span>
                     ) : (
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md font-semibold text-[11px] ${
                         row.category === 'Closed' ? 'bg-emerald-100 text-emerald-800' :
@@ -173,7 +173,7 @@ export const FullSummaryTable: React.FC<FullSummaryTableProps> = ({ summaryRows,
                       </span>
                     )}
                   </td>
-                  <td className={`py-3 px-4 text-right font-bold ${isTotalRow ? 'text-navy-900 text-sm' : 'text-slate-900'}`}>
+                  <td className={`py-3 px-4 text-right font-bold ${isTotalRow ? 'text-slate-900 text-sm' : 'text-slate-900'}`}>
                     {formatMillions(row.todayAmount)}
                   </td>
                   <td className="py-3 px-4 text-right font-semibold text-slate-700">
@@ -212,19 +212,19 @@ export const FullSummaryTable: React.FC<FullSummaryTableProps> = ({ summaryRows,
             })}
 
             {/* Grand Total Row */}
-            <tr className="bg-navy-900 text-white font-black border-t-2 border-navy-950">
-              <td className="py-4 px-4 text-sm font-extrabold text-blue-300">Grand Total</td>
-              <td className="py-4 px-4 text-xs uppercase text-slate-300">Overall Pipeline</td>
-              <td className="py-4 px-4 text-right text-base text-white">{formatMillions(grandTotal.todayAmount)}</td>
-              <td className="py-4 px-4 text-right text-sm text-blue-200">{grandTotal.todayCount}</td>
-              <td className={`py-4 px-4 text-right text-sm ${grandTotal.tyAmount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            <tr className="bg-slate-100 text-slate-900 font-black border-t-2 border-slate-300">
+              <td className="py-4 px-4 text-sm font-extrabold text-blue-700">Grand Total</td>
+              <td className="py-4 px-4 text-xs uppercase text-slate-600">Overall Pipeline</td>
+              <td className="py-4 px-4 text-right text-base text-slate-900">{formatMillions(grandTotal.todayAmount)}</td>
+              <td className="py-4 px-4 text-right text-sm text-slate-800">{grandTotal.todayCount}</td>
+              <td className={`py-4 px-4 text-right text-sm ${grandTotal.tyAmount >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                 {formatVarAmount(grandTotal.tyAmount)}
               </td>
-              <td className="py-4 px-4 text-right text-xs text-slate-300">{formatVarCount(grandTotal.tyCount)}</td>
-              <td className={`py-4 px-4 text-right text-sm ${grandTotal.tlwAmount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <td className="py-4 px-4 text-right text-xs text-slate-600">{formatVarCount(grandTotal.tyCount)}</td>
+              <td className={`py-4 px-4 text-right text-sm ${grandTotal.tlwAmount >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                 {formatVarAmount(grandTotal.tlwAmount)}
               </td>
-              <td className="py-4 px-4 text-right text-xs text-slate-300">{formatVarCount(grandTotal.tlwCount)}</td>
+              <td className="py-4 px-4 text-right text-xs text-slate-600">{formatVarCount(grandTotal.tlwCount)}</td>
             </tr>
           </tbody>
         </table>

@@ -60,11 +60,11 @@ export const TopRegionsChart: React.FC<TopRegionsChartProps> = ({ topRegions }) 
   };
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 text-slate-900">
       {/* Title & Control Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
         <div>
-          <h3 className="font-extrabold text-navy-900 text-base flex items-center gap-2">
+          <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
             <span>Top 10 Accounts by Region & Business Unit</span>
             <Building2 className="h-4 w-4 text-blue-600" />
           </h3>
@@ -77,7 +77,7 @@ export const TopRegionsChart: React.FC<TopRegionsChartProps> = ({ topRegions }) 
           <select
             value={selectedBU}
             onChange={(e) => setSelectedBU(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-navy-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {uniqueBUs.map(bu => (
               <option key={bu} value={bu}>{bu === 'All' ? 'All Business Units' : bu}</option>
@@ -92,10 +92,10 @@ export const TopRegionsChart: React.FC<TopRegionsChartProps> = ({ topRegions }) 
           <button
             key={reg}
             onClick={() => setSelectedRegion(reg)}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               selectedRegion === reg
-                ? 'bg-navy-900 text-white shadow-2xs'
-                : 'bg-slate-100 text-slate-600 hover:text-navy-900'
+                ? 'bg-blue-600 text-white shadow-2xs'
+                : 'bg-slate-100 text-slate-600 hover:text-slate-900'
             }`}
           >
             {reg === 'All' ? 'All Sub-Regions' : reg}
@@ -104,7 +104,7 @@ export const TopRegionsChart: React.FC<TopRegionsChartProps> = ({ topRegions }) 
       </div>
 
       {/* Insight Line */}
-      <div className="p-3 rounded-xl bg-indigo-50/80 border border-indigo-200/80 flex items-start gap-2 text-xs text-indigo-950 font-medium">
+      <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex items-start gap-2 text-xs text-indigo-950 font-medium">
         <Lightbulb className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
         <span><strong className="text-indigo-900 font-bold">Insight:</strong> {insightText}</span>
       </div>
@@ -119,8 +119,8 @@ export const TopRegionsChart: React.FC<TopRegionsChartProps> = ({ topRegions }) 
               <YAxis type="category" dataKey="name" tick={{ fill: '#0F172A', fontSize: 11, fontWeight: 600 }} width={140} axisLine={{ stroke: '#CBD5E1' }} />
               <Tooltip 
                 formatter={formatTooltip}
-                contentStyle={{ backgroundColor: '#0F172A', borderColor: '#1E293B', borderRadius: '12px', color: '#FFF' }}
-                itemStyle={{ color: '#F8FAFC', fontSize: '12px' }}
+                contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E2E8F0', borderRadius: '12px', color: '#0F172A', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                itemStyle={{ color: '#0F172A', fontSize: '12px', fontWeight: 600 }}
               />
               <Bar dataKey="amount" fill="#3B82F6" radius={[0, 6, 6, 0]} />
             </BarChart>

@@ -37,15 +37,15 @@ export const ApprovalStatusChart: React.FC<ApprovalStatusChartProps> = ({ data }
   };
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 text-slate-900">
       <div>
-        <h3 className="font-extrabold text-navy-900 text-base flex items-center gap-2">
+        <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
           <span>Approval Status Distribution</span>
           <CheckCircle2 className="h-4 w-4 text-emerald-600" />
         </h3>
 
         {/* Insight Line */}
-        <div className="mt-2.5 p-3 rounded-xl bg-emerald-50/80 border border-emerald-200/80 flex items-start gap-2 text-xs text-emerald-950 font-medium">
+        <div className="mt-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-2 text-xs text-emerald-950 font-medium">
           <Lightbulb className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
           <span><strong className="text-emerald-900 font-bold">Insight:</strong> {insightText}</span>
         </div>
@@ -69,8 +69,8 @@ export const ApprovalStatusChart: React.FC<ApprovalStatusChartProps> = ({ data }
             </Pie>
             <Tooltip 
               formatter={formatTooltip}
-              contentStyle={{ backgroundColor: '#0F172A', borderColor: '#1E293B', borderRadius: '12px', color: '#FFF' }}
-              itemStyle={{ color: '#F8FAFC', fontSize: '12px' }}
+              contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E2E8F0', borderRadius: '12px', color: '#0F172A', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+              itemStyle={{ color: '#0F172A', fontSize: '12px', fontWeight: 600 }}
             />
             <Legend 
               verticalAlign="bottom"
@@ -86,7 +86,7 @@ export const ApprovalStatusChart: React.FC<ApprovalStatusChartProps> = ({ data }
         {/* Center Total Overlay */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-8">
           <span className="text-[10px] uppercase font-extrabold text-slate-400">Total ACV</span>
-          <span className="text-lg font-black text-navy-900">${(totalAmount / 1e6).toFixed(1)}M</span>
+          <span className="text-lg font-black text-slate-900">${(totalAmount / 1e6).toFixed(1)}M</span>
         </div>
       </div>
     </div>

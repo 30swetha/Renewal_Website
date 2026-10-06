@@ -69,11 +69,11 @@ export const VarianceChart: React.FC<VarianceChartProps> = ({ summaryRows }) => 
   };
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 text-slate-900">
       {/* Title, Mode Switcher & Insight Line */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="font-extrabold text-navy-900 text-base flex items-center gap-2">
+          <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
             <span>Quarterly Variance Tracker</span>
             <ArrowLeftRight className="h-4 w-4 text-blue-600" />
           </h3>
@@ -83,20 +83,20 @@ export const VarianceChart: React.FC<VarianceChartProps> = ({ summaryRows }) => 
         <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 self-start sm:self-auto">
           <button
             onClick={() => setVarMode('TY')}
-            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               varMode === 'TY'
                 ? 'bg-blue-600 text-white shadow-2xs'
-                : 'text-slate-600 hover:text-navy-900'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             T-Y (vs. Yesterday)
           </button>
           <button
             onClick={() => setVarMode('TLW')}
-            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               varMode === 'TLW'
                 ? 'bg-blue-600 text-white shadow-2xs'
-                : 'text-slate-600 hover:text-navy-900'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             T-LW (vs. Last Week)
@@ -105,7 +105,7 @@ export const VarianceChart: React.FC<VarianceChartProps> = ({ summaryRows }) => 
       </div>
 
       {/* Insight Line */}
-      <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-2 text-xs text-amber-950 font-medium">
+      <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2 text-xs text-amber-950 font-medium">
         <Lightbulb className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
         <span><strong className="text-amber-900 font-bold">Insight:</strong> {insightText}</span>
       </div>
@@ -120,8 +120,8 @@ export const VarianceChart: React.FC<VarianceChartProps> = ({ summaryRows }) => 
             <ReferenceLine y={0} stroke="#94A3B8" strokeWidth={1.5} />
             <Tooltip 
               formatter={formatTooltip}
-              contentStyle={{ backgroundColor: '#0F172A', borderColor: '#1E293B', borderRadius: '12px', color: '#FFF' }}
-              itemStyle={{ color: '#F8FAFC', fontSize: '12px' }}
+              contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E2E8F0', borderRadius: '12px', color: '#0F172A', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+              itemStyle={{ color: '#0F172A', fontSize: '12px', fontWeight: 600 }}
             />
             <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
             
