@@ -61,12 +61,12 @@ export const BusinessUnitsPage: React.FC = () => {
   const selectedBuData = selectedBu ? buMap.get(selectedBu) : null;
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-16 bg-slate-50 min-h-screen text-slate-900">
       
       {/* Top Header & Toggle */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-black text-navy-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Layers className="h-5 w-5 text-blue-600" />
             <span>Business Units Performance & Approval Mix</span>
           </h1>
@@ -87,8 +87,8 @@ export const BusinessUnitsPage: React.FC = () => {
       </div>
 
       {/* Business Units Stacked Rows Table */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-        <h3 className="font-extrabold text-navy-900 dark:text-white text-sm">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <h3 className="font-extrabold text-slate-900 text-sm">
           Business Unit Portfolio Stacked Approval Breakdown
         </h3>
 
@@ -104,39 +104,31 @@ export const BusinessUnitsPage: React.FC = () => {
             return (
               <div
                 key={item.buName}
-                onClick={() => setSelectedBu(selectedBu === item.buName ? null : item.buName)}
-                className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-3 ${
-                  selectedBu === item.buName
-                    ? 'bg-blue-50/70 dark:bg-slate-800 border-blue-400 ring-2 ring-blue-500/20'
-                    : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
+                onClick={() => setSelectedBu(item.buName)}
+                className="p-4 bg-slate-50 hover:bg-blue-50/60 rounded-2xl border border-slate-200 cursor-pointer transition-all space-y-2"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                  <div>
-                    <h4 className="font-black text-navy-900 dark:text-white text-sm">{item.buName}</h4>
-                    <p className="text-slate-500 text-[11px]">{item.count} total opportunities</p>
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-900">{item.buName}</span>
+                    <span className="text-slate-500 font-mono">({item.count} deals)</span>
                   </div>
-                  <div className="text-right">
-                    <span className="text-base font-black text-navy-900 dark:text-white">${(item.totalAcv / 1e6).toFixed(2)}M</span>
-                    <span className="text-[10px] text-blue-600 block font-bold">Click to drill down</span>
-                  </div>
+                  <span className="font-black text-slate-900 font-mono">
+                    ${(item.totalAcv / 1e6).toFixed(2)}M
+                  </span>
                 </div>
 
-                {/* Compact Stacked Approval Bar (Green, Dark Green, Amber, Grey, Red) */}
-                <div className="h-4 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
+                {/* Stacked Progress Bar */}
+                <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden flex">
                   <div style={{ width: `${approvedPct}%` }} className="bg-emerald-500 h-full" title={`Approved: $${(item.approved / 1e6).toFixed(2)}M`} />
-                  <div style={{ width: `${approved2ndPct}%` }} className="bg-teal-600 h-full" title={`Approved-2nd: $${(item.approved2nd / 1e6).toFixed(2)}M`} />
+                  <div style={{ width: `${approved2ndPct}%` }} className="bg-teal-500 h-full" title={`Approved-2nd: $${(item.approved2nd / 1e6).toFixed(2)}M`} />
                   <div style={{ width: `${pendingPct}%` }} className="bg-amber-500 h-full" title={`Pending: $${(item.pending / 1e6).toFixed(2)}M`} />
                   <div style={{ width: `${blankPct}%` }} className="bg-slate-400 h-full" title={`Blank: $${(item.blank / 1e6).toFixed(2)}M`} />
-                  <div style={{ width: `${rejectedPct}%` }} className="bg-red-500 h-full" title={`Rejected: $${(item.rejected / 1e6).toFixed(2)}M`} />
+                  <div style={{ width: `${rejectedPct}%` }} className="bg-rose-500 h-full" title={`Rejected: $${(item.rejected / 1e6).toFixed(2)}M`} />
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between text-[10px] font-bold text-slate-500 pt-1">
-                  <span className="text-emerald-700">Approved: ${(item.approved / 1e6).toFixed(2)}M</span>
-                  <span className="text-teal-700">Approved-2nd: ${(item.approved2nd / 1e6).toFixed(2)}M</span>
-                  <span className="text-amber-700">Pending: ${(item.pending / 1e6).toFixed(2)}M</span>
-                  <span className="text-slate-600">Blank: ${(item.blank / 1e6).toFixed(2)}M</span>
-                  <span className="text-red-700">Rejected: ${(item.rejected / 1e6).toFixed(2)}M</span>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono pt-1">
+                  <span>Approved: <strong>${(item.approved / 1e6).toFixed(2)}M</strong> ({approvedPct.toFixed(1)}%)</span>
+                  <span>Pending: <strong>${(item.pending / 1e6).toFixed(2)}M</strong> ({pendingPct.toFixed(1)}%)</span>
                 </div>
               </div>
             );
@@ -144,21 +136,21 @@ export const BusinessUnitsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Selected BU Opportunity Drill-Down */}
+      {/* Selected BU Drawer / Detail List */}
       {selectedBuData && (
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-blue-300 dark:border-blue-800 shadow-lg space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div className="bg-white p-6 rounded-3xl border border-blue-200 shadow-md space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h3 className="font-extrabold text-navy-900 dark:text-white text-sm">
-                Opportunities for {selectedBuData.buName} ({selectedBuData.opps.length} items)
+              <h3 className="font-extrabold text-slate-900 text-sm">
+                Opportunities in {selectedBuData.buName} (${(selectedBuData.totalAcv / 1e6).toFixed(2)}M)
               </h3>
-              <p className="text-xs text-slate-500">Click any deal to open detail timeline drawer</p>
+              <p className="text-xs text-slate-500">Click any deal card to inspect timeline and history</p>
             </div>
             <button
               onClick={() => setSelectedBu(null)}
-              className="px-3 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs"
+              className="px-3 py-1 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs border border-slate-200"
             >
-              Close Drill-Down
+              Close List
             </button>
           </div>
 
@@ -167,21 +159,20 @@ export const BusinessUnitsPage: React.FC = () => {
               <div
                 key={opp.opportunity_id}
                 onClick={() => setSelectedOppId(opp.opportunity_id)}
-                className="p-3.5 bg-slate-50 dark:bg-slate-800/50 hover:bg-blue-50/70 rounded-2xl border border-slate-200 dark:border-slate-700/60 cursor-pointer transition-colors space-y-1"
+                className="p-3.5 bg-slate-50 hover:bg-blue-50/70 rounded-2xl border border-slate-200 cursor-pointer transition-colors space-y-1"
               >
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-mono font-bold text-blue-600">{opp.opportunity_id}</span>
-                  <span className="font-extrabold text-navy-900 dark:text-white">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
+                  <span className="font-extrabold text-slate-900">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
                 </div>
-                <h4 className="font-bold text-navy-900 dark:text-white text-xs truncate">{opp.opportunity_name}</h4>
-                <p className="text-[11px] text-slate-500">{opp.region} &bull; Status: {opp.approval_status}</p>
+                <h4 className="font-bold text-slate-900 text-xs truncate">{opp.opportunity_name}</h4>
+                <p className="text-[11px] text-slate-500">{opp.region} &bull; {opp.expiry_quarter}</p>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Opportunity Drawer */}
       <OpportunityDrawer
         oppId={selectedOppId}
         onClose={() => setSelectedOppId(null)}

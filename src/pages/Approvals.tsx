@@ -53,12 +53,12 @@ export const ApprovalsPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-16 bg-slate-50 min-h-screen text-slate-900">
       
       {/* Top Header */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-black text-navy-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-emerald-600" />
             <span>Approval Status Analytics & Funnel</span>
           </h1>
@@ -72,8 +72,8 @@ export const ApprovalsPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Approval Donut Funnel */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-          <h3 className="font-extrabold text-navy-900 dark:text-white text-sm">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+          <h3 className="font-extrabold text-slate-900 text-sm">
             Current Approval Breakdown (ACV & Count)
           </h3>
 
@@ -100,22 +100,22 @@ export const ApprovalsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Historical Trend Line Chart */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-          <h3 className="font-extrabold text-navy-900 dark:text-white text-sm">
-            Approval Trend History Across Snapshots ($ Millions)
+        {/* Approval Trend Line Chart */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+          <h3 className="font-extrabold text-slate-900 text-sm">
+            Snapshot Approval Velocity Trajectory ($M)
           </h3>
 
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#64748B" />
-                <YAxis tick={{ fontSize: 11 }} stroke="#64748B" />
-                <Tooltip formatter={(val: any) => [`$${Number(val).toFixed(2)}M`, 'ACV']} />
+              <LineChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#475569' }} stroke="#94a3b8" />
+                <YAxis tick={{ fontSize: 11, fill: '#475569' }} stroke="#94a3b8" />
+                <Tooltip formatter={(val: any) => [`$${Number(val).toFixed(2)}M`, 'Amount']} />
                 <Legend />
-                <Line type="monotone" dataKey="Approved" stroke="#10B981" strokeWidth={3} />
-                <Line type="monotone" dataKey="Pending" stroke="#F59E0B" strokeWidth={3} />
-                <Line type="monotone" dataKey="Blank" stroke="#94A3B8" strokeWidth={2} strokeDasharray="5 5" />
+                <Line type="monotone" dataKey="Approved" stroke="#10B981" strokeWidth={3} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="Pending" stroke="#F59E0B" strokeWidth={3} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="Blank" stroke="#94A3B8" strokeWidth={2} strokeDasharray="4 4" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -123,108 +123,98 @@ export const ApprovalsPage: React.FC = () => {
 
       </div>
 
-      {/* Daily Approval Activity: Newly Approved / Pending / Rejected Today */}
+      {/* 3 Columns: Newly Approved, Newly Pending, Newly Rejected */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* Newly Approved */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-emerald-200 dark:border-slate-800 shadow-xs space-y-3">
-          <div className="flex items-center justify-between border-b border-emerald-100 dark:border-slate-800 pb-2">
-            <h3 className="font-extrabold text-emerald-950 dark:text-emerald-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
+        <div className="bg-white p-6 rounded-3xl border border-emerald-200 shadow-sm space-y-3">
+          <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center justify-between border-b border-emerald-100 pb-2">
+            <span className="flex items-center gap-1.5 text-emerald-700">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <span>Newly Approved Today</span>
-            </h3>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 text-[10px] font-bold">
-              {newlyApproved.length}
+              Newly Approved Today
             </span>
-          </div>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px]">
+              {newlyApproved.length} opps
+            </span>
+          </h4>
 
           <div className="space-y-2">
-            {newlyApproved.length > 0 ? (
-              newlyApproved.map(opp => (
-                <div
-                  key={opp.opportunity_id}
-                  onClick={() => setSelectedOppId(opp.opportunity_id)}
-                  className="p-3 bg-emerald-50/60 dark:bg-slate-800/60 rounded-xl border border-emerald-200/60 cursor-pointer hover:border-emerald-400 text-xs space-y-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-navy-900 dark:text-white truncate">{opp.opportunity_name}</span>
-                    <span className="font-extrabold text-emerald-700">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
-                  </div>
+            {newlyApproved.map(opp => (
+              <div
+                key={opp.opportunity_id}
+                onClick={() => setSelectedOppId(opp.opportunity_id)}
+                className="p-3 bg-slate-50 hover:bg-emerald-50/60 rounded-2xl border border-slate-200 cursor-pointer transition-colors text-xs space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 truncate max-w-[140px]">{opp.opportunity_name}</span>
+                  <span className="font-extrabold text-emerald-600">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
                 </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-400 italic py-2">No new sign-offs logged today.</p>
-            )}
+                <p className="text-[11px] text-slate-500">{opp.region} &bull; {opp.expiry_quarter}</p>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Newly Pending */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-amber-200 dark:border-slate-800 shadow-xs space-y-3">
-          <div className="flex items-center justify-between border-b border-amber-100 dark:border-slate-800 pb-2">
-            <h3 className="font-extrabold text-amber-950 dark:text-amber-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
+        <div className="bg-white p-6 rounded-3xl border border-amber-200 shadow-sm space-y-3">
+          <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center justify-between border-b border-amber-100 pb-2">
+            <span className="flex items-center gap-1.5 text-amber-700">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <span>Newly Pending Approval</span>
-            </h3>
-            <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 text-[10px] font-bold">
-              {newlyPending.length}
+              Moved to Pending Today
             </span>
-          </div>
+            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px]">
+              {newlyPending.length} opps
+            </span>
+          </h4>
 
           <div className="space-y-2">
-            {newlyPending.length > 0 ? (
-              newlyPending.map(opp => (
-                <div
-                  key={opp.opportunity_id}
-                  onClick={() => setSelectedOppId(opp.opportunity_id)}
-                  className="p-3 bg-amber-50/60 dark:bg-slate-800/60 rounded-xl border border-amber-200/60 cursor-pointer hover:border-amber-400 text-xs space-y-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-navy-900 dark:text-white truncate">{opp.opportunity_name}</span>
-                    <span className="font-extrabold text-amber-700">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
-                  </div>
+            {newlyPending.map(opp => (
+              <div
+                key={opp.opportunity_id}
+                onClick={() => setSelectedOppId(opp.opportunity_id)}
+                className="p-3 bg-slate-50 hover:bg-amber-50/60 rounded-2xl border border-slate-200 cursor-pointer transition-colors text-xs space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 truncate max-w-[140px]">{opp.opportunity_name}</span>
+                  <span className="font-extrabold text-amber-600">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
                 </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-400 italic py-2">No new pending requests today.</p>
-            )}
+                <p className="text-[11px] text-slate-500">{opp.region} &bull; {opp.expiry_quarter}</p>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Newly Rejected */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-red-200 dark:border-slate-800 shadow-xs space-y-3">
-          <div className="flex items-center justify-between border-b border-red-100 dark:border-slate-800 pb-2">
-            <h3 className="font-extrabold text-red-950 dark:text-red-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <span>Newly Rejected Today</span>
-            </h3>
-            <span className="px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950 text-red-800 text-[10px] font-bold">
-              {newlyRejected.length}
+        <div className="bg-white p-6 rounded-3xl border border-rose-200 shadow-sm space-y-3">
+          <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center justify-between border-b border-rose-100 pb-2">
+            <span className="flex items-center gap-1.5 text-rose-700">
+              <AlertCircle className="h-4 w-4 text-rose-600" />
+              Requires Revision / Rejected
             </span>
-          </div>
+            <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px]">
+              {newlyRejected.length} opps
+            </span>
+          </h4>
 
           <div className="space-y-2">
-            {newlyRejected.length > 0 ? (
-              newlyRejected.map(opp => (
-                <div
-                  key={opp.opportunity_id}
-                  onClick={() => setSelectedOppId(opp.opportunity_id)}
-                  className="p-3 bg-red-50/60 dark:bg-slate-800/60 rounded-xl border border-red-200/60 cursor-pointer hover:border-red-400 text-xs space-y-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-navy-900 dark:text-white truncate">{opp.opportunity_name}</span>
-                    <span className="font-extrabold text-red-700">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
-                  </div>
+            {newlyRejected.map(opp => (
+              <div
+                key={opp.opportunity_id}
+                onClick={() => setSelectedOppId(opp.opportunity_id)}
+                className="p-3 bg-slate-50 hover:bg-rose-50/60 rounded-2xl border border-slate-200 cursor-pointer transition-colors text-xs space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 truncate max-w-[140px]">{opp.opportunity_name}</span>
+                  <span className="font-extrabold text-rose-600">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
                 </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-400 italic py-2">No rejections logged today.</p>
-            )}
+                <p className="text-[11px] text-slate-500">{opp.region} &bull; {opp.expiry_quarter}</p>
+              </div>
+            ))}
           </div>
         </div>
 
       </div>
 
-      {/* Opportunity Drawer */}
       <OpportunityDrawer
         oppId={selectedOppId}
         onClose={() => setSelectedOppId(null)}

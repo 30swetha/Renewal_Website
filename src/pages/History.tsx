@@ -14,12 +14,12 @@ export const HistoryPage: React.FC = () => {
   const comparison = compareSnapshotsApi(fromDate, toDate);
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-16 bg-slate-50 min-h-screen text-slate-900">
       
       {/* Top Header */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-black text-navy-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <HistoryIcon className="h-5 w-5 text-blue-600" />
             <span>Upload Snapshots History & Date Comparison</span>
           </h1>
@@ -30,19 +30,19 @@ export const HistoryPage: React.FC = () => {
       </div>
 
       {/* Compare Any Two Dates Control Bar */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-        <h3 className="font-extrabold text-navy-900 dark:text-white text-sm flex items-center gap-2">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
           <Calendar className="h-4 w-4 text-blue-600" />
           <span>Compare Any Two Dates View</span>
         </h3>
 
-        <div className="flex flex-wrap items-center gap-4 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60">
+        <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
           <div className="flex items-center gap-2 text-xs">
             <span className="font-bold text-slate-500">From Date:</span>
             <select
               value={fromDate}
               onChange={e => setFromDate(e.target.value)}
-              className="p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-navy-900 dark:text-white"
+              className="p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-900"
             >
               {snapshots.map(s => (
                 <option key={s.snapshot_date} value={s.snapshot_date}>{s.snapshot_date}</option>
@@ -57,7 +57,7 @@ export const HistoryPage: React.FC = () => {
             <select
               value={toDate}
               onChange={e => setToDate(e.target.value)}
-              className="p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-navy-900 dark:text-white"
+              className="p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-900"
             >
               {snapshots.map(s => (
                 <option key={s.snapshot_date} value={s.snapshot_date}>{s.snapshot_date}</option>
@@ -65,7 +65,7 @@ export const HistoryPage: React.FC = () => {
             </select>
           </div>
 
-          <div className="ml-auto text-xs font-bold text-navy-900 dark:text-white">
+          <div className="ml-auto text-xs font-bold text-slate-900">
             <span>Net ACV Variance: </span>
             <span className={comparison.acvDelta >= 0 ? 'text-emerald-600 font-black' : 'text-red-600 font-black'}>
               {comparison.acvDelta >= 0 ? '+' : ''}${(comparison.acvDelta / 1e6).toFixed(2)}M
@@ -75,7 +75,7 @@ export const HistoryPage: React.FC = () => {
 
         {/* Comparison Change Log Results */}
         <div className="space-y-3">
-          <h4 className="font-bold text-navy-900 dark:text-white text-xs uppercase tracking-wider">
+          <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
             Modifications Log ({comparison.changeLog.length} Changes Between {fromDate} and {toDate})
           </h4>
 
@@ -85,15 +85,15 @@ export const HistoryPage: React.FC = () => {
                 <div
                   key={log.id}
                   onClick={() => setSelectedOppId(log.opportunity_id)}
-                  className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60 hover:bg-blue-50/60 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                  className="p-3 bg-slate-50 rounded-xl border border-slate-200 hover:bg-blue-50/60 cursor-pointer flex items-center justify-between text-xs transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <Badge variant={log.change_type === 'NEW' ? 'new' : log.change_type === 'MODIFIED' ? 'modified' : 'removed'}>
                       {log.change_type}
                     </Badge>
                     <div>
-                      <span className="font-bold text-navy-900 dark:text-white">{log.opportunity_name}</span>
-                      <span className="text-[11px] text-slate-400 block">{log.field}: {log.old_value} &rarr; {log.new_value}</span>
+                      <span className="font-bold text-slate-900">{log.opportunity_name}</span>
+                      <span className="text-[11px] text-slate-500 block">{log.field}: {log.old_value} &rarr; {log.new_value}</span>
                     </div>
                   </div>
                   <span className="font-mono font-bold text-blue-600">{log.opportunity_id}</span>
@@ -101,40 +101,42 @@ export const HistoryPage: React.FC = () => {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-slate-400 italic py-2">No differences logged between selected dates.</p>
+            <p className="text-xs text-slate-400 p-4">No changes recorded between selected dates.</p>
           )}
         </div>
       </div>
 
-      {/* Snapshot Upload Timeline */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-        <h3 className="font-extrabold text-navy-900 dark:text-white text-sm">
-          Historical Ingestion Snapshot Records
+      {/* Snapshots Audit Log Table */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+          <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+          <span>Ingested Snapshot Audit History</span>
         </h3>
 
-        <div className="space-y-3">
-          {snapshots.map(snap => (
-            <div key={snap.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/60 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-100 dark:bg-blue-950 text-blue-600 rounded-xl">
-                  <FileSpreadsheet className="h-5 w-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-navy-900 dark:text-white text-sm">Snapshot: {snap.snapshot_date}</h4>
-                  <p className="text-slate-500 text-[11px] mt-0.5">
-                    Source: {snap.source_files.join(', ')} &bull; Uploaded {new Date(snap.uploaded_at).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              <span className="px-3 py-1 rounded-full bg-navy-900 text-white font-black text-xs">
-                {snap.row_count} Contracts
-              </span>
-            </div>
-          ))}
+        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-100 font-extrabold text-slate-900 border-b border-slate-200">
+                <th className="p-3.5">Snapshot Date</th>
+                <th className="p-3.5">Total Records</th>
+                <th className="p-3.5">Source Files</th>
+                <th className="p-3.5">Uploaded At</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+              {snapshots.map(s => (
+                <tr key={s.snapshot_date} className="hover:bg-slate-50">
+                  <td className="p-3.5 font-bold text-slate-900">{s.snapshot_date}</td>
+                  <td className="p-3.5 font-bold text-slate-900">{s.row_count} rows</td>
+                  <td className="p-3.5 font-mono text-[11px] text-slate-500">{s.source_files.join(', ')}</td>
+                  <td className="p-3.5 text-slate-400">{new Date(s.uploaded_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Opportunity History Drawer */}
       <OpportunityDrawer
         oppId={selectedOppId}
         onClose={() => setSelectedOppId(null)}

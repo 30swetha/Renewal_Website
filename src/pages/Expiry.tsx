@@ -57,11 +57,11 @@ export const ExpiryPage: React.FC = () => {
   const getHeatmapColor = (val: number) => {
     if (viewMode === 'today') {
       const pct = Math.min(val / maxHeatmapVal, 1);
-      return `rgba(37, 99, 235, ${0.1 + pct * 0.8})`;
+      return `rgba(37, 99, 235, ${0.08 + pct * 0.45})`;
     }
-    if (val > 0) return 'rgba(16, 185, 129, 0.25)';
-    if (val < 0) return 'rgba(239, 68, 68, 0.25)';
-    return 'rgba(241, 245, 249, 0.5)';
+    if (val > 0) return 'rgba(16, 185, 129, 0.2)';
+    if (val < 0) return 'rgba(239, 68, 68, 0.2)';
+    return 'rgba(241, 245, 249, 0.8)';
   };
 
   // Filtered cell opportunities for drill-down modal/list
@@ -70,12 +70,12 @@ export const ExpiryPage: React.FC = () => {
     : [];
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-16 bg-slate-50 min-h-screen text-slate-900">
       
       {/* Top Header & Controls */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-black text-navy-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Calendar className="h-5 w-5 text-blue-600" />
             <span>Service Expiry Heatmap & Quarter Timeline</span>
           </h1>
@@ -108,32 +108,32 @@ export const ExpiryPage: React.FC = () => {
       </div>
 
       {/* Expiry Heatmap Matrix */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-        <h3 className="font-extrabold text-navy-900 dark:text-white text-sm">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <h3 className="font-extrabold text-slate-900 text-sm">
           Expiry Quarter vs Forecast Category Heatmap Grid
         </h3>
 
         <div className="overflow-x-auto">
           <table className="w-full text-center border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800">
+              <tr className="border-b border-slate-200">
                 <th className="py-3 px-4 text-left font-extrabold text-xs uppercase text-slate-400">Quarter</th>
                 {categories.map(cat => (
-                  <th key={cat} className="py-3 px-4 font-extrabold text-xs uppercase text-slate-700 dark:text-slate-200">
+                  <th key={cat} className="py-3 px-4 font-extrabold text-xs uppercase text-slate-700">
                     {cat}
                   </th>
                 ))}
-                <th className="py-3 px-4 font-extrabold text-xs uppercase text-navy-900 dark:text-white bg-slate-100 dark:bg-slate-800">
+                <th className="py-3 px-4 font-extrabold text-xs uppercase text-slate-900 bg-slate-100">
                   Quarter Total
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-100">
               {quarters.map(q => {
                 let rowTotal = 0;
                 return (
                   <tr key={q}>
-                    <td className="py-4 px-4 text-left font-bold text-navy-900 dark:text-white text-xs bg-slate-50 dark:bg-slate-800/50">
+                    <td className="py-4 px-4 text-left font-bold text-slate-900 text-xs bg-slate-50">
                       {q}
                     </td>
                     {categories.map(cat => {
@@ -148,13 +148,13 @@ export const ExpiryPage: React.FC = () => {
                           key={cat}
                           onClick={() => setSelectedCell({ quarter: q, category: cat })}
                           style={{ backgroundColor: getHeatmapColor(val) }}
-                          className="py-4 px-4 font-extrabold text-xs text-navy-900 dark:text-white border border-white dark:border-slate-900 rounded-2xl cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
+                          className="py-4 px-4 font-extrabold text-xs text-slate-900 border border-slate-200 rounded-2xl cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
                         >
                           {viewMode !== 'today' && val > 0 ? `+${formatted}` : formatted}
                         </td>
                       );
                     })}
-                    <td className="py-4 px-4 font-black text-xs text-navy-900 dark:text-white bg-slate-100 dark:bg-slate-800">
+                    <td className="py-4 px-4 font-black text-xs text-slate-900 bg-slate-100">
                       {metricMode === 'amount' ? `$${(rowTotal / 1e6).toFixed(2)}M` : rowTotal.toLocaleString()}
                     </td>
                   </tr>
@@ -167,17 +167,17 @@ export const ExpiryPage: React.FC = () => {
 
       {/* Selected Cell Drill-Down Modal / List */}
       {selectedCell && (
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-blue-300 dark:border-blue-800 shadow-lg space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div className="bg-white p-6 rounded-3xl border border-blue-200 shadow-md space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h3 className="font-extrabold text-navy-900 dark:text-white text-sm">
+              <h3 className="font-extrabold text-slate-900 text-sm">
                 Opportunities in {selectedCell.quarter} &bull; {selectedCell.category} ({cellOpps.length} contracts)
               </h3>
               <p className="text-xs text-slate-500">Click any row to view opportunity details</p>
             </div>
             <button
               onClick={() => setSelectedCell(null)}
-              className="px-3 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs"
+              className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs border border-slate-200"
             >
               Close List
             </button>
@@ -188,13 +188,13 @@ export const ExpiryPage: React.FC = () => {
               <div
                 key={opp.opportunity_id}
                 onClick={() => setSelectedOppId(opp.opportunity_id)}
-                className="p-3.5 bg-slate-50 dark:bg-slate-800/50 hover:bg-blue-50/70 rounded-2xl border border-slate-200 dark:border-slate-700/60 cursor-pointer transition-colors space-y-1"
+                className="p-3.5 bg-slate-50 hover:bg-blue-50/70 rounded-2xl border border-slate-200 cursor-pointer transition-colors space-y-1"
               >
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-mono font-bold text-blue-600">{opp.opportunity_id}</span>
-                  <span className="font-extrabold text-navy-900 dark:text-white">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
+                  <span className="font-extrabold text-slate-900">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
                 </div>
-                <h4 className="font-bold text-navy-900 dark:text-white text-xs truncate">{opp.opportunity_name}</h4>
+                <h4 className="font-bold text-slate-900 text-xs truncate">{opp.opportunity_name}</h4>
                 <p className="text-[11px] text-slate-500">{opp.account_name} &bull; {opp.region}</p>
               </div>
             ))}

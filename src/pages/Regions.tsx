@@ -49,12 +49,12 @@ export const RegionsPage: React.FC = () => {
     .slice(0, 10) || [];
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-16 bg-slate-50 min-h-screen text-slate-900">
       
       {/* Top Header */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-black text-navy-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Globe className="h-5 w-5 text-indigo-600" />
             <span>Sub-Regions Overview & World Portfolio Mix</span>
           </h1>
@@ -74,16 +74,16 @@ export const RegionsPage: React.FC = () => {
               onClick={() => setSelectedRegion(item.region)}
               className={`p-5 rounded-3xl border transition-all cursor-pointer space-y-2 ${
                 isSelected
-                  ? 'bg-gradient-to-br from-indigo-900 to-navy-950 text-white border-indigo-500 shadow-lg ring-2 ring-indigo-500/20'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-400'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                  : 'bg-white border-slate-200 hover:border-indigo-400 text-slate-900'
               }`}
             >
               <div className="flex items-center justify-between text-xs">
-                <span className={`font-black text-sm ${isSelected ? 'text-white' : 'text-navy-900 dark:text-white'}`}>
+                <span className={`font-black text-sm ${isSelected ? 'text-white' : 'text-slate-900'}`}>
                   {item.region}
                 </span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  isSelected ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  isSelected ? 'bg-blue-700 text-blue-100' : 'bg-slate-100 text-slate-700'
                 }`}>
                   {item.count} opps
                 </span>
@@ -100,41 +100,33 @@ export const RegionsPage: React.FC = () => {
       {activeRegionData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* Top 10 Ranked Opportunities with Horizontal Bar Charts */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="font-extrabold text-navy-900 dark:text-white text-sm flex items-center gap-2">
-                <Award className="h-4 w-4 text-amber-500" />
-                <span>Top 10 Ranked Deals in {activeRegionData.region}</span>
-              </h3>
-            </div>
+          {/* Top 10 Opportunities in Selected Region */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+              <Award className="h-4 w-4 text-amber-500" />
+              <span>Top 10 ACV Deals in {selectedRegion}</span>
+            </h3>
 
             <div className="space-y-3">
               {top10Opps.map((opp, idx) => {
-                const barWidthPct = (opp.acv_amount / maxAcvInTop10) * 100;
+                const widthPct = (opp.acv_amount / maxAcvInTop10) * 100;
                 return (
                   <div
                     key={opp.opportunity_id}
                     onClick={() => setSelectedOppId(opp.opportunity_id)}
-                    className="p-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-blue-50/60 rounded-2xl border border-slate-200 dark:border-slate-700/60 cursor-pointer transition-all space-y-1.5"
+                    className="p-3 bg-slate-50 hover:bg-blue-50/70 rounded-2xl border border-slate-200 cursor-pointer transition-colors space-y-1.5"
                   >
                     <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="h-5 w-5 rounded-full bg-navy-900 text-white font-extrabold text-[10px] flex items-center justify-center shrink-0">
-                          #{idx + 1}
-                        </span>
-                        <span className="font-bold text-navy-900 dark:text-white truncate max-w-[220px]">
-                          {opp.opportunity_name}
-                        </span>
-                      </div>
-                      <span className="font-extrabold text-navy-900 dark:text-white">
+                      <span className="font-bold text-slate-900 truncate max-w-[200px]">
+                        #{idx + 1}. {opp.opportunity_name}
+                      </span>
+                      <span className="font-black text-slate-900 font-mono">
                         ${(opp.acv_amount / 1e6).toFixed(2)}M
                       </span>
                     </div>
 
-                    {/* Horizontal Bar Visual */}
-                    <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                      <div style={{ width: `${barWidthPct}%` }} className="h-full bg-indigo-600 rounded-full" />
+                    <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                      <div style={{ width: `${widthPct}%` }} className="h-full bg-blue-600 rounded-full" />
                     </div>
                   </div>
                 );
@@ -142,27 +134,26 @@ export const RegionsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Top 10 for Leading Business Unit */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="font-extrabold text-navy-900 dark:text-white text-sm flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-blue-600" />
-                <span>Top Deals in Leading BU ({leadingBu})</span>
-              </h3>
-            </div>
+          {/* Leading Business Unit Breakdown */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-indigo-600" />
+              <span>Leading BU in Region: <strong>{leadingBu}</strong></span>
+            </h3>
 
             <div className="space-y-3">
               {top10LeadingBuOpps.map((opp) => (
                 <div
                   key={opp.opportunity_id}
                   onClick={() => setSelectedOppId(opp.opportunity_id)}
-                  className="p-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-blue-50/60 rounded-2xl border border-slate-200 dark:border-slate-700/60 cursor-pointer transition-all space-y-1"
+                  className="p-3 bg-slate-50 hover:bg-indigo-50/70 rounded-2xl border border-slate-200 cursor-pointer transition-colors space-y-1 text-xs"
                 >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-navy-900 dark:text-white truncate">{opp.opportunity_name}</span>
-                    <span className="font-extrabold text-indigo-600">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-blue-600">{opp.opportunity_id}</span>
+                    <span className="font-extrabold text-slate-900">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
                   </div>
-                  <p className="text-[11px] text-slate-500">{opp.account_name} &bull; Quarter: {opp.expiry_quarter}</p>
+                  <h4 className="font-bold text-slate-900 truncate">{opp.opportunity_name}</h4>
+                  <p className="text-[11px] text-slate-500">{opp.approval_status} &bull; {opp.expiry_quarter}</p>
                 </div>
               ))}
             </div>
@@ -171,7 +162,6 @@ export const RegionsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Opportunity Drawer */}
       <OpportunityDrawer
         oppId={selectedOppId}
         onClose={() => setSelectedOppId(null)}

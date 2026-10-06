@@ -8,7 +8,7 @@ export interface ColumnDef<T> {
   sortable?: boolean;
   align?: 'left' | 'center' | 'right';
   render?: (item: T) => React.ReactNode;
-  colorAccent?: string; // e.g. "bg-blue-50/50"
+  colorAccent?: string;
 }
 
 interface DataTableProps<T> {
@@ -83,7 +83,7 @@ export function DataTable<T>({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={searchPlaceholder}
-              className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900"
             />
           </div>
           <span className="text-xs text-slate-500 font-medium">
@@ -93,20 +93,20 @@ export function DataTable<T>({
       )}
 
       {/* Table Container */}
-      <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto shadow-2xs max-h-[550px] bg-white dark:bg-slate-900">
+      <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-2xs max-h-[550px] bg-white">
         <table className="w-full text-left text-xs border-collapse">
           {/* Sticky Header */}
-          <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-extrabold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+          <thead className="sticky top-0 z-20 bg-slate-100 text-slate-800 font-extrabold uppercase tracking-wider border-b border-slate-200">
             <tr>
               {columns.map((col, idx) => (
                 <th
                   key={col.key}
                   onClick={() => col.sortable !== false && handleSort(col.key)}
-                  className={`py-3 px-4 transition-colors ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${
-                    col.sortable !== false ? 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700/80' : ''
+                  className={`py-3.5 px-4 transition-colors ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${
+                    col.sortable !== false ? 'cursor-pointer hover:bg-slate-200' : ''
                   } ${
                     stickyFirstColumn && idx === 0
-                      ? 'sticky left-0 z-30 bg-slate-100 dark:bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.05)]'
+                      ? 'sticky left-0 z-30 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)]'
                       : ''
                   }`}
                 >
@@ -128,24 +128,24 @@ export function DataTable<T>({
           </thead>
 
           {/* Table Body */}
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+          <tbody className="divide-y divide-slate-100">
             {sortedData.length > 0 ? (
               sortedData.map((item) => (
                 <tr
                   key={keyExtractor(item)}
                   onClick={() => onRowClick && onRowClick(item)}
                   className={`transition-colors ${
-                    onRowClick ? 'hover:bg-blue-50/60 dark:hover:bg-slate-800/60 cursor-pointer' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'
+                    onRowClick ? 'hover:bg-blue-50/60 cursor-pointer' : 'hover:bg-slate-50'
                   }`}
                 >
                   {columns.map((col, idx) => (
                     <td
                       key={col.key}
-                      className={`py-3 px-4 font-medium text-slate-800 dark:text-slate-200 ${
+                      className={`py-3.5 px-4 font-medium text-slate-800 ${
                         col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
                       } ${col.colorAccent || ''} ${
                         stickyFirstColumn && idx === 0
-                          ? 'sticky left-0 z-10 bg-white dark:bg-slate-900 shadow-[2px_0_5px_rgba(0,0,0,0.05)]'
+                          ? 'sticky left-0 z-10 bg-white shadow-[2px_0_5px_rgba(0,0,0,0.05)]'
                           : ''
                       }`}
                     >

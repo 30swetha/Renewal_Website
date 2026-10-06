@@ -45,14 +45,14 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ oppId, onC
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-xl h-full shadow-2xl border-l border-slate-200 dark:border-slate-800 flex flex-col animate-in slide-in-from-right duration-250">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-xl h-full shadow-2xl border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-250 text-slate-900">
         
         {/* Drawer Header */}
-        <div className="bg-gradient-to-r from-navy-950 to-navy-900 p-6 text-white border-b border-navy-800 flex items-start justify-between">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 text-slate-900 border-b border-slate-200 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono text-xs text-blue-400 font-bold px-2 py-0.5 rounded bg-blue-900/50 border border-blue-700/50">
+              <span className="font-mono text-xs text-blue-700 font-bold px-2 py-0.5 rounded bg-blue-100 border border-blue-200">
                 {latest.opportunity_id}
               </span>
               <Badge variant={getCategoryVariant(latest.forecast_category)}>
@@ -62,67 +62,67 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ oppId, onC
                 {latest.approval_status}
               </Badge>
             </div>
-            <h2 className="text-lg font-black text-white leading-snug">
+            <h2 className="text-lg font-black text-slate-900 leading-snug">
               {latest.opportunity_name}
             </h2>
-            <p className="text-xs text-slate-300 mt-1 flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 text-blue-300" />
+            <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-blue-600" />
               <span>{latest.account_name}</span>
             </p>
           </div>
 
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white hover:bg-navy-800 rounded-xl transition-colors cursor-pointer"
+            className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Drawer Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/70 dark:bg-slate-950/50">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
           
           {/* Key Facts Grid */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Contract ACV</span>
-              <p className="text-xl font-black text-navy-900 dark:text-white mt-0.5">
+              <p className="text-xl font-black text-slate-900 mt-0.5">
                 ${(latest.acv_amount / 1e6).toFixed(2)}M
               </p>
             </div>
-            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Service Expiry Quarter</span>
-              <p className="text-base font-black text-navy-900 dark:text-white mt-0.5">
+              <p className="text-base font-black text-slate-900 mt-0.5">
                 {latest.expiry_quarter}
               </p>
             </div>
-            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Region / Sub-Region</span>
-              <p className="text-xs font-bold text-navy-900 dark:text-white mt-1 truncate">
+              <p className="text-xs font-bold text-slate-900 mt-1 truncate">
                 {latest.region}
               </p>
             </div>
-            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Business Unit</span>
-              <p className="text-xs font-bold text-navy-900 dark:text-white mt-1 truncate">
+              <p className="text-xs font-bold text-slate-900 mt-1 truncate">
                 {latest.business_unit}
               </p>
             </div>
           </div>
 
           {/* Historical Snapshot Progression Timeline */}
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
-            <h3 className="font-extrabold text-navy-900 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+            <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
               <Clock className="h-4 w-4 text-blue-600" />
               <span>Snapshot History Timeline ({history.snapshots.length} Snapshots)</span>
             </h3>
 
-            <div className="relative pl-4 border-l-2 border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="relative pl-4 border-l-2 border-slate-200 space-y-4">
               {history.snapshots.map((item, idx) => (
                 <div key={idx} className="relative">
-                  <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-blue-600 ring-4 ring-white dark:ring-slate-900" />
+                  <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-blue-600 ring-4 ring-white" />
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-navy-900 dark:text-white">{item.date}</span>
+                    <span className="font-bold text-slate-900">{item.date}</span>
                     <span className="font-mono font-bold text-emerald-600">${(item.record.acv_amount / 1e6).toFixed(2)}M</span>
                   </div>
                   <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
@@ -136,8 +136,8 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ oppId, onC
           </div>
 
           {/* Detailed Itemized Change Log */}
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
-            <h3 className="font-extrabold text-navy-900 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+            <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-amber-500" />
               <span>Field Change Log Audit ({history.changeLogs.length} Events)</span>
             </h3>
@@ -145,16 +145,16 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ oppId, onC
             {history.changeLogs.length > 0 ? (
               <div className="space-y-2">
                 {history.changeLogs.map((log) => (
-                  <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 text-xs flex items-center justify-between">
+                  <div key={log.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <Badge variant={log.change_type === 'NEW' ? 'new' : log.change_type === 'MODIFIED' ? 'modified' : 'removed'}>
                           {log.change_type}
                         </Badge>
-                        <span className="font-bold text-navy-900 dark:text-white">{log.field}</span>
+                        <span className="font-bold text-slate-900">{log.field}</span>
                       </div>
                       <p className="text-slate-500 text-[11px] mt-1">
-                        From: <span className="line-through text-slate-400">{log.old_value}</span> &rarr; <strong className="text-navy-900 dark:text-white">{log.new_value}</strong>
+                        From: <span className="line-through text-slate-400">{log.old_value}</span> &rarr; <strong className="text-slate-900">{log.new_value}</strong>
                       </p>
                     </div>
                     <span className="text-[10px] text-slate-400 font-mono">{log.snapshot_date}</span>
@@ -169,10 +169,10 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ oppId, onC
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-right">
+        <div className="p-4 bg-slate-100 border-t border-slate-200 text-right">
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-navy-900 hover:bg-navy-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
           >
             Close Drawer
           </button>

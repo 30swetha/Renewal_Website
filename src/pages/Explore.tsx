@@ -83,7 +83,7 @@ export const ExplorePage: React.FC = () => {
       accessor: o => o.opportunity_name,
       render: o => (
         <div>
-          <span className="font-bold text-navy-900 dark:text-white">{o.opportunity_name}</span>
+          <span className="font-bold text-slate-900">{o.opportunity_name}</span>
           <span className="text-[10px] text-slate-400 block">{o.account_name}</span>
         </div>
       ),
@@ -93,27 +93,38 @@ export const ExplorePage: React.FC = () => {
       header: 'ACV Amount',
       accessor: o => o.acv_amount,
       align: 'right',
-      render: o => <span className="font-extrabold text-navy-900 dark:text-white">${(o.acv_amount / 1e6).toFixed(2)}M</span>,
+      render: o => <span className="font-extrabold text-slate-900">${(o.acv_amount / 1e6).toFixed(2)}M</span>,
     },
     {
       key: 'forecast_category',
       header: 'Category',
       accessor: o => o.forecast_category,
-      render: o => <Badge variant={o.forecast_category.toLowerCase() as any}>{o.forecast_category}</Badge>,
+      render: o => (
+        <Badge variant={
+          o.forecast_category === 'Closed' ? 'closed' :
+          o.forecast_category === 'Commit' ? 'commit' :
+          o.forecast_category === 'Best Case' ? 'bestcase' : 'pipeline'
+        }>
+          {o.forecast_category}
+        </Badge>
+      ),
     },
     {
       key: 'approval_status',
       header: 'Approval Status',
       accessor: o => o.approval_status,
       render: o => (
-        <Badge variant={o.approval_status.includes('Approved') ? 'approved' : o.approval_status.includes('Pending') ? 'pending' : 'blank'}>
+        <Badge variant={
+          o.approval_status.includes('Approved') ? 'approved' :
+          o.approval_status.includes('Pending') ? 'pending' : 'rejected'
+        }>
           {o.approval_status}
         </Badge>
       ),
     },
     {
       key: 'expiry_quarter',
-      header: 'Expiry Quarter',
+      header: 'Quarter',
       accessor: o => o.expiry_quarter,
     },
     {
@@ -129,121 +140,144 @@ export const ExplorePage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-16 bg-slate-50 min-h-screen text-slate-900">
       
-      {/* Header & CSV Export */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Top Header & Actions */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-black text-navy-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <FileText className="h-5 w-5 text-blue-600" />
-            <span>Explore Opportunities Portfolio</span>
+            <span>Explore Portfolio & Contract Registry</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Search, filter, and inspect all {allOpps.length} contract opportunities
+            Search, filter, and inspect detailed opportunity line-items across snapshots
           </p>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex items-center gap-3">
           <button
             onClick={handleExportCsv}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-xs shadow-sm flex items-center gap-2 cursor-pointer transition-all"
           >
             <Download className="h-4 w-4" />
-            <span>Export CSV</span>
+            <span>Export Line-Items (.csv)</span>
           </button>
         </div>
       </div>
 
-      {/* Saved Views & Multi-Filters Toolbar */}
-      <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-        
-        {/* Saved Views Quick Chips */}
-        <div className="flex items-center gap-2 text-xs border-b border-slate-100 dark:border-slate-800 pb-3 overflow-x-auto">
-          <span className="font-extrabold text-slate-400 uppercase text-[10px] tracking-wider shrink-0 flex items-center gap-1">
-            <Bookmark className="h-3.5 w-3.5 text-blue-600" />
-            Saved Views:
-          </span>
-          <button onClick={() => applySavedView('pending')} className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-full font-bold text-xs cursor-pointer">
-            Pending Approvals
-          </button>
-          <button onClick={() => applySavedView('highRisk')} className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-800 rounded-full font-bold text-xs cursor-pointer">
-            High Risk Pipeline
-          </button>
-          <button onClick={() => applySavedView('q3Exp')} className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-full font-bold text-xs cursor-pointer">
-            Q3 Commit Deals
-          </button>
-          <button onClick={() => { setSelectedRegion('All'); setSelectedBu('All'); setSelectedCategory('All'); setSelectedApproval('All'); setSelectedQuarter('All'); }} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full font-bold text-xs cursor-pointer">
-            Reset Filters
-          </button>
+      {/* Saved Views Preset Buttons */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold">
+        <span className="text-slate-400 flex items-center gap-1.5 shrink-0 pr-2">
+          <Bookmark className="h-4 w-4 text-blue-600" />
+          <span>Quick Presets:</span>
+        </span>
+        <button
+          onClick={() => applySavedView('pending')}
+          className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl cursor-pointer shadow-2xs"
+        >
+          Pending Approvals
+        </button>
+        <button
+          onClick={() => applySavedView('highRisk')}
+          className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl cursor-pointer shadow-2xs"
+        >
+          Unapproved Pipeline
+        </button>
+        <button
+          onClick={() => applySavedView('q3Exp')}
+          className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl cursor-pointer shadow-2xs"
+        >
+          Q3 Commit Expiries
+        </button>
+      </div>
+
+      {/* Interactive Filter Toolbar */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 mb-1">Region</label>
+          <select
+            value={selectedRegion}
+            onChange={e => setSelectedRegion(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none"
+          >
+            <option value="All">All Regions</option>
+            <option value="Middle East">Middle East</option>
+            <option value="North America East">North America East</option>
+            <option value="North America West">North America West</option>
+            <option value="EMEA Central">EMEA Central</option>
+            <option value="APAC South">APAC South</option>
+          </select>
         </div>
 
-        {/* Dropdown Filters */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Region</label>
-            <select value={selectedRegion} onChange={e => setSelectedRegion(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold">
-              <option value="All">All Regions</option>
-              <option value="Middle East">Middle East</option>
-              <option value="Sub-Saharan Africa">Sub-Saharan Africa</option>
-              <option value="Europe & UK">Europe & UK</option>
-              <option value="North America">North America</option>
-              <option value="Asia Pacific">Asia Pacific</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Business Unit</label>
-            <select value={selectedBu} onChange={e => setSelectedBu(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold">
-              <option value="All">All Business Units</option>
-              <option value="Enterprise">Enterprise</option>
-              <option value="Mobility">Mobility</option>
-              <option value="Roaming">Roaming & Network</option>
-              <option value="Security">Security & Fraud</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Category</label>
-            <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold">
-              <option value="All">All Categories</option>
-              <option value="Closed">Closed</option>
-              <option value="Commit">Commit</option>
-              <option value="Best Case">Best Case</option>
-              <option value="Pipeline">Pipeline</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Approval</label>
-            <select value={selectedApproval} onChange={e => setSelectedApproval(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold">
-              <option value="All">All Statuses</option>
-              <option value="Approved">Approved</option>
-              <option value="Pending">Pending Approval</option>
-              <option value="Blank">Blank</option>
-              <option value="Rejected">Rejected</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Expiry Quarter</label>
-            <select value={selectedQuarter} onChange={e => setSelectedQuarter(e.target.value)} className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold">
-              <option value="All">All Quarters</option>
-              <option value="Q1-2026">Q1-2026</option>
-              <option value="Q2-2026">Q2-2026</option>
-              <option value="Q3-2026">Q3-2026</option>
-              <option value="Q4-2026">Q4-2026</option>
-            </select>
-          </div>
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 mb-1">Business Unit</label>
+          <select
+            value={selectedBu}
+            onChange={e => setSelectedBu(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none"
+          >
+            <option value="All">All Business Units</option>
+            <option value="Enterprise 5G">Enterprise 5G</option>
+            <option value="Cloud Voice">Cloud Voice</option>
+            <option value="SIP Trunking">SIP Trunking</option>
+            <option value="Managed IoT">Managed IoT</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 mb-1">Forecast Category</label>
+          <select
+            value={selectedCategory}
+            onChange={e => setSelectedCategory(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none"
+          >
+            <option value="All">All Categories</option>
+            <option value="Closed">Closed</option>
+            <option value="Commit">Commit</option>
+            <option value="Best Case">Best Case</option>
+            <option value="Pipeline">Pipeline</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 mb-1">Approval Status</label>
+          <select
+            value={selectedApproval}
+            onChange={e => setSelectedApproval(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none"
+          >
+            <option value="All">All Statuses</option>
+            <option value="Approved">Approved</option>
+            <option value="Pending">Pending Approval</option>
+            <option value="Blank">Blank</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 mb-1">Expiry Quarter</label>
+          <select
+            value={selectedQuarter}
+            onChange={e => setSelectedQuarter(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none"
+          >
+            <option value="All">All Quarters</option>
+            <option value="Q1-2026">Q1-2026</option>
+            <option value="Q2-2026">Q2-2026</option>
+            <option value="Q3-2026">Q3-2026</option>
+            <option value="Q4-2026">Q4-2026</option>
+          </select>
         </div>
       </div>
 
-      {/* Main Filtered Opportunities DataTable */}
+      {/* Main DataTable */}
       <DataTable
-        data={filteredOpps}
         columns={columns}
+        data={filteredOpps}
         keyExtractor={o => o.opportunity_id}
         onRowClick={o => setSelectedOppId(o.opportunity_id)}
-        searchPlaceholder="Search opportunities by name, account, or ID..."
+        searchPlaceholder="Filter contract name, opportunity ID, account..."
       />
 
-      {/* Opportunity History Drawer */}
       <OpportunityDrawer
         oppId={selectedOppId}
         onClose={() => setSelectedOppId(null)}
