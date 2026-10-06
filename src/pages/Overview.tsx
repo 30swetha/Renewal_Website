@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { getSharedDataset, formatCurrencyM, useDatasetRefresh } from '../lib/sharedDataLayer';
 import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
+import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
 
 export const OverviewPage: React.FC = () => {
   const navigate = useNavigate();
@@ -274,6 +275,9 @@ export const OverviewPage: React.FC = () => {
         </div>
 
       </div>
+
+      {/* 3. Forecast Category Movement Matrix (Pill Cards with Positive/Negative Split) */}
+      <ForecastCategoryMovementTable onSelectOpp={setSelectedOppId} />
 
       {/* 3. Link Cards Grid for Each of the Other Tabs */}
       <div className="space-y-3">

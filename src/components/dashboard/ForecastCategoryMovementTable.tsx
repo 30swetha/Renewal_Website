@@ -1,14 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  TrendingUp, 
-  TrendingDown, 
   ArrowRight, 
   AlertCircle, 
   X, 
-  ChevronRight, 
   Layers,
   CheckCircle2,
-  XCircle
+  XCircle,
+  GitCommit
 } from 'lucide-react';
 import { db } from '../../lib/database';
 import { formatCurrencyM, getSharedDataset } from '../../lib/sharedDataLayer';
@@ -33,7 +31,6 @@ export interface MovementItem {
     acvDiff: number;
   }[];
 }
-
 
 interface ForecastCategoryMovementTableProps {
   todayDate?: string;
@@ -60,7 +57,6 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
     return opps.length > 0 ? opps : getSharedDataset(yesterdayDate);
   }, [yesterdayDate]);
 
-  // Handle case where yesterday's data is missing
   const hasYesterdayData = yesterdayOpps.length > 0;
 
   // Process today vs yesterday forecast category movements dynamically (Positive vs Negative)
@@ -87,52 +83,49 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
       'Pipeline': 1,
     };
 
-    // Standard Positive Movement definitions (Left Side)
-    const posDefs: Array<{ id: string; label: string; match: (f: string, t: string, d: number) => boolean }> = [
-      { id: 'commit_to_closed', label: 'Commit to Closed', match: (f, t) => f === 'Commit' && t === 'Closed' },
-      { id: 'bestcase_to_commit', label: 'Best Case to Commit', match: (f, t) => f === 'Best Case' && t === 'Commit' },
-      { id: 'pipeline_to_bestcase', label: 'Pipeline to Best Case', match: (f, t) => f === 'Pipeline' && t === 'Best Case' },
-      { id: 'pipeline_to_commit', label: 'Pipeline to Commit', match: (f, t) => f === 'Pipeline' && t === 'Commit' },
-      { id: 'bestcase_to_closed', label: 'Best Case to Closed', match: (f, t) => f === 'Best Case' && t === 'Closed' },
-      { id: 'pipeline_to_closed', label: 'Pipeline to Closed', match: (f, t) => f === 'Pipeline' && t === 'Closed' },
-      { id: 'other_to_closed', label: 'Any Move to Closed', match: (f, t) => t === 'Closed' && f !== 'Commit' && f !== 'Best Case' && f !== 'Pipeline' },
-      { id: 'new_deals', label: 'New Deals Added Today', match: (f) => f === 'New Deal' || f === 'N/A' },
-      { id: 'acv_increase', label: 'ACV Amount Increased', match: (f, t, d) => f === t && d > 0.01 },
+    // Positive Movement definitions (Left Side)
+    const posDefs: Array<{ id: string; label: string; fromCat: string; toCat: string; match: (f: string, t: string, d: number) => boolean }> = [
+      { id: 'closed_stay', label: 'Closed Retention', fromCat: 'Closed', toCat: 'Closed', match: (f, t, d) => f === 'Closed' && t === 'Closed' && Math.abs(d) <= 0.01 },
+      { id: 'commit_stay', label: 'Commit Retention', fromCat: 'Commit', toCat: 'Commit', match: (f, t, d) => f === 'Commit' && t === 'Commit' && Math.abs(d) <= 0.01 },
+      { id: 'bestcase_stay', label: 'Best Case Retention', fromCat: 'Best Case', toCat: 'Best Case', match: (f, t, d) => f === 'Best Case' && t === 'Best Case' && Math.abs(d) <= 0.01 },
+      { id: 'pipeline_stay', label: 'Pipeline Retention', fromCat: 'Pipeline', toCat: 'Pipeline', match: (f, t, d) => f === 'Pipeline' && t === 'Pipeline' && Math.abs(d) <= 0.01 },
+      { id: 'commit_to_closed', label: 'Commit to Closed', fromCat: 'Commit', toCat: 'Closed', match: (f, t) => f === 'Commit' && t === 'Closed' },
+      { id: 'bestcase_to_commit', label: 'Best Case to Commit', fromCat: 'Best Case', toCat: 'Commit', match: (f, t) => f === 'Best Case' && t === 'Commit' },
+      { id: 'pipeline_to_bestcase', label: 'Pipeline to Best Case', fromCat: 'Pipeline', toCat: 'Best Case', match: (f, t) => f === 'Pipeline' && t === 'Best Case' },
+      { id: 'pipeline_to_commit', label: 'Pipeline to Commit', fromCat: 'Pipeline', toCat: 'Commit', match: (f, t) => f === 'Pipeline' && t === 'Commit' },
+      { id: 'bestcase_to_closed', label: 'Best Case to Closed', fromCat: 'Best Case', toCat: 'Closed', match: (f, t) => f === 'Best Case' && t === 'Closed' },
+      { id: 'pipeline_to_closed', label: 'Pipeline to Closed', fromCat: 'Pipeline', toCat: 'Closed', match: (f, t) => f === 'Pipeline' && t === 'Closed' },
+      { id: 'new_deals', label: 'New Deals Added', fromCat: 'New Deal', toCat: 'Active', match: (f) => f === 'New Deal' || f === 'N/A' },
+      { id: 'acv_increase', label: 'ACV Increased', fromCat: 'Same Stage', toCat: 'ACV +', match: (f, t, d) => f === t && d > 0.01 },
     ];
 
-    // Standard Negative Movement definitions (Right Side)
-    const negDefs: Array<{ id: string; label: string; match: (f: string, t: string, d: number) => boolean }> = [
-      { id: 'commit_to_bestcase', label: 'Commit to Best Case', match: (f, t) => f === 'Commit' && t === 'Best Case' },
-      { id: 'bestcase_to_pipeline', label: 'Best Case to Pipeline', match: (f, t) => f === 'Best Case' && t === 'Pipeline' },
-      { id: 'commit_to_pipeline', label: 'Commit to Pipeline', match: (f, t) => f === 'Commit' && t === 'Pipeline' },
-      { id: 'closed_to_commit', label: 'Closed to Commit', match: (f, t) => f === 'Closed' && t === 'Commit' },
-      { id: 'closed_to_bestcase', label: 'Closed to Best Case', match: (f, t) => f === 'Closed' && t === 'Best Case' },
-      { id: 'closed_to_pipeline', label: 'Closed to Pipeline', match: (f, t) => f === 'Closed' && t === 'Pipeline' },
-      { id: 'other_from_closed', label: 'Any Move Out of Closed', match: (f, t) => f === 'Closed' && t !== 'Commit' && t !== 'Best Case' && t !== 'Pipeline' },
-      { id: 'removed_deals', label: 'Deals Slipped / Dropped', match: (_, t) => t === 'Removed' || t === 'Slipped Out' },
-      { id: 'acv_decrease', label: 'ACV Amount Decreased', match: (f, t, d) => f === t && d < -0.01 },
+    // Negative Movement definitions (Right Side)
+    const negDefs: Array<{ id: string; label: string; fromCat: string; toCat: string; match: (f: string, t: string, d: number) => boolean }> = [
+      { id: 'commit_to_bestcase', label: 'Commit to Best Case', fromCat: 'Commit', toCat: 'Best Case', match: (f, t) => f === 'Commit' && t === 'Best Case' },
+      { id: 'bestcase_to_pipeline', label: 'Best Case to Pipeline', fromCat: 'Best Case', toCat: 'Pipeline', match: (f, t) => f === 'Best Case' && t === 'Pipeline' },
+      { id: 'commit_to_pipeline', label: 'Commit to Pipeline', fromCat: 'Commit', toCat: 'Pipeline', match: (f, t) => f === 'Commit' && t === 'Pipeline' },
+      { id: 'closed_to_commit', label: 'Closed to Commit', fromCat: 'Closed', toCat: 'Commit', match: (f, t) => f === 'Closed' && t === 'Commit' },
+      { id: 'closed_to_bestcase', label: 'Closed to Best Case', fromCat: 'Closed', toCat: 'Best Case', match: (f, t) => f === 'Closed' && t === 'Best Case' },
+      { id: 'closed_to_pipeline', label: 'Closed to Pipeline', fromCat: 'Closed', toCat: 'Pipeline', match: (f, t) => f === 'Closed' && t === 'Pipeline' },
+      { id: 'removed_deals', label: 'Deals Slipped / Dropped', fromCat: 'Active', toCat: 'Slipped', match: (_, t) => t === 'Removed' || t === 'Slipped Out' },
+      { id: 'acv_decrease', label: 'ACV Decreased', fromCat: 'Same Stage', toCat: 'ACV -', match: (f, t, d) => f === t && d < -0.01 },
     ];
 
     const posItemsMap = new Map<string, MovementItem>();
-    posDefs.forEach(d => posItemsMap.set(d.id, { id: d.id, label: d.label, fromCat: '', toCat: '', count: 0, totalAcv: 0, opps: [] }));
+    posDefs.forEach(d => posItemsMap.set(d.id, { id: d.id, label: d.label, fromCat: d.fromCat, toCat: d.toCat, count: 0, totalAcv: 0, opps: [] }));
 
     const negItemsMap = new Map<string, MovementItem>();
-    negDefs.forEach(d => negItemsMap.set(d.id, { id: d.id, label: d.label, fromCat: '', toCat: '', count: 0, totalAcv: 0, opps: [] }));
+    negDefs.forEach(d => negItemsMap.set(d.id, { id: d.id, label: d.label, fromCat: d.fromCat, toCat: d.toCat, count: 0, totalAcv: 0, opps: [] }));
 
     const extraPosMap = new Map<string, MovementItem>();
     const extraNegMap = new Map<string, MovementItem>();
 
-    // 1. Check Today Opps against Yesterday Baseline
+    // 1. Process Today Opps against Yesterday Baseline
     todayOpps.forEach(toOpp => {
       const fromOpp = yesterdayMap.get(toOpp.opportunity_id);
       const fromCat = fromOpp ? (fromOpp.forecast_category || 'New Deal') : 'New Deal';
       const toCat = toOpp.forecast_category;
       const acvDiff = toOpp.acv_amount - (fromOpp ? fromOpp.acv_amount : 0);
-
-      // Skip if no category change AND no ACV change
-      if (fromOpp && fromCat === toCat && Math.abs(acvDiff) <= 0.01) {
-        return;
-      }
 
       const oppDetail = {
         opportunity_id: toOpp.opportunity_id,
@@ -145,7 +138,7 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
         acvDiff,
       };
 
-      // Match Positive Rules
+      // Try matching Positive Rules
       let matched = false;
       for (const d of posDefs) {
         if (d.match(fromCat, toCat, acvDiff)) {
@@ -158,7 +151,7 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
         }
       }
 
-      // Match Negative Rules
+      // Try matching Negative Rules
       if (!matched) {
         for (const d of negDefs) {
           if (d.match(fromCat, toCat, acvDiff)) {
@@ -172,19 +165,25 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
         }
       }
 
-      // Unmatched custom transition: classify dynamically by rank or ACV diff
+      // Unmatched custom transition: classify dynamically
       if (!matched) {
         const fromRank = categoryRank[fromCat] || 0;
         const toRank = categoryRank[toCat] || 0;
-        const isPos = toRank > fromRank || acvDiff > 0;
+        const isPos = toRank >= fromRank || acvDiff >= 0;
 
         const dynId = `${fromCat}_to_${toCat}`;
-        const dynLabel = fromCat === toCat 
-          ? `${fromCat} (${acvDiff >= 0 ? 'ACV +' : 'ACV -'})` 
-          : `${fromCat} to ${toCat}`;
+        const dynLabel = `${fromCat} to ${toCat}`;
 
         const targetMap = isPos ? extraPosMap : extraNegMap;
-        const existing: MovementItem = targetMap.get(dynId) || { id: dynId, label: dynLabel, fromCat, toCat, count: 0, totalAcv: 0, opps: [] as MovementItem['opps'] };
+        const existing: MovementItem = targetMap.get(dynId) || { 
+          id: dynId, 
+          label: dynLabel, 
+          fromCat, 
+          toCat, 
+          count: 0, 
+          totalAcv: 0, 
+          opps: [] as MovementItem['opps'] 
+        };
         existing.count += 1;
         existing.totalAcv += toOpp.acv_amount;
         existing.opps.push(oppDetail);
@@ -192,7 +191,7 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
       }
     });
 
-    // 2. Check Yesterday Opps missing today (Removed / Slipped Deals)
+    // 2. Process Yesterday Opps missing today (Removed / Slipped Deals)
     yesterdayOpps.forEach(fromOpp => {
       if (!todayMap.has(fromOpp.opportunity_id)) {
         const oppDetail = {
@@ -213,8 +212,12 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
       }
     });
 
-    const posList = [...Array.from(posItemsMap.values()), ...Array.from(extraPosMap.values())];
-    const negList = [...Array.from(negItemsMap.values()), ...Array.from(extraNegMap.values())];
+    // Filter out rows with 0 opps for clean display, or keep key retention rows
+    const posList = [...Array.from(posItemsMap.values()), ...Array.from(extraPosMap.values())]
+      .filter(r => r.count > 0);
+
+    const negList = [...Array.from(negItemsMap.values()), ...Array.from(extraNegMap.values())]
+      .filter(r => r.count > 0);
 
     const pNetCount = posList.reduce((s, r) => s + r.count, 0);
     const pNetAcv = posList.reduce((s, r) => s + r.totalAcv, 0);
@@ -230,7 +233,6 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
     };
   }, [todayOpps, yesterdayOpps, hasYesterdayData]);
 
-
   const handleOppClick = (oppId: string) => {
     if (onSelectOpp) {
       onSelectOpp(oppId);
@@ -239,223 +241,149 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
     }
   };
 
-  // Render Missing Data Message if Yesterday Data is Unavailable
   if (!hasYesterdayData) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 text-amber-900 space-y-2 shadow-xs">
         <div className="flex items-center gap-2">
           <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
-          <h3 className="font-extrabold text-sm">Forecast Movement Comparison Unavailable</h3>
+          <h3 className="font-extrabold text-sm">Forecast Movement Matrix Unavailable</h3>
         </div>
         <p className="text-xs text-amber-700 leading-relaxed">
-          Yesterday's baseline dataset (<code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded text-amber-900">{yesterdayDate}</code>) is not available in the platform database. 
-          Upload or seed baseline snapshot data to analyze category progression (Positive &amp; Negative stage flows).
+          Yesterday's baseline dataset is missing. Upload or seed baseline data to calculate stage progression matrix.
         </p>
       </div>
     );
   }
 
+  // Render pill row item matching the screenshot design
+  const renderPillRow = (row: MovementItem, isPositive: boolean) => {
+    return (
+      <div 
+        key={row.id}
+        onClick={() => row.count > 0 && setActiveModalRow(row)}
+        className="p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-blue-400 hover:shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
+      >
+        {/* Left Side: Badges showing Stage Movement ([From] -> [To]) */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-indigo-100/80 text-indigo-900 border border-indigo-200/80 font-mono">
+            {row.fromCat.toUpperCase()}
+          </span>
+          <ArrowRight className="h-3.5 w-3.5 text-slate-400 shrink-0 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider font-mono ${
+            isPositive 
+              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+              : 'bg-red-100 text-red-900 border border-red-300'
+          }`}>
+            {row.toCat.toUpperCase()}
+          </span>
+        </div>
+
+        {/* Right Side: Total ACV Amount (Bold) & Opp Count below it */}
+        <div className="text-right shrink-0">
+          <div className={`font-black font-mono text-sm tracking-tight ${isPositive ? 'text-slate-900' : 'text-red-600'}`}>
+            {formatCurrencyM(row.totalAcv)}
+          </div>
+          <div className="text-[11px] text-slate-400 font-bold font-mono">
+            {row.count} {row.count === 1 ? 'opp' : 'opps'}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-4">
-      {/* Component Title Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
+    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+      
+      {/* Card Header matching Screenshot */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
         <div>
-          <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
-            <Layers className="h-4 w-4 text-blue-600" />
-            <span>Forecast Category Movement ({todayDate} vs {yesterdayDate})</span>
+          <h3 className="font-black text-slate-900 text-base tracking-tight flex items-center gap-2">
+            <Layers className="h-4.5 w-4.5 text-blue-600" />
+            <span>Forecast Category Movement Matrix</span>
           </h3>
-          <p className="text-xs text-slate-500">
-            Side-by-side progression analysis showing positive stage advancement vs negative stage slippage
+          <p className="text-xs text-slate-500 mt-0.5">
+            Deals shifting across forecast stages since yesterday ({todayDate} vs {yesterdayDate})
           </p>
         </div>
-        <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 shrink-0">
-          Click any row to inspect opportunity details
-        </span>
+
+        {/* Top Right Pill Button matching Screenshot */}
+        <button 
+          onClick={() => setActiveModalRow(positiveRows[0] || negativeRows[0] || null)}
+          className="px-4 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 transition-colors shrink-0 flex items-center gap-1.5 shadow-2xs"
+        >
+          <GitCommit className="h-3.5 w-3.5 text-blue-600" />
+          <span>Sankey Stage Flows</span>
+        </button>
       </div>
 
-      {/* TWO Halves Side-by-Side Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* Two Columns Grid: Positive Movements (Left) vs Negative Movements (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* LEFT HALF: Positive Movement (Green Header) */}
-        <div className="bg-white rounded-3xl border border-emerald-200 shadow-sm overflow-hidden flex flex-col justify-between">
-          
-          <div>
-            {/* Green Header */}
-            <div className="bg-emerald-600 px-5 py-3.5 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4.5 w-4.5 text-emerald-200" />
-                <h4 className="font-black text-xs uppercase tracking-wider">Positive Movement</h4>
-              </div>
-              <span className="text-[11px] font-bold bg-emerald-700/80 text-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-500/50">
-                Green Stage Advances
-              </span>
+        {/* LEFT COLUMN: Positive / Profitable Movements */}
+        <div className="space-y-3">
+          <div className="bg-emerald-50 px-4 py-2.5 rounded-2xl border border-emerald-200 flex items-center justify-between text-emerald-950">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <h4 className="font-black text-xs uppercase tracking-wider">Positive / Advancement Changes</h4>
             </div>
-
-            {/* Positive Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-emerald-50/70 border-b border-emerald-100 text-[11px] font-black text-emerald-900 uppercase tracking-wider">
-                    <th className="py-2.5 px-4">Movement Stage</th>
-                    <th className="py-2.5 px-4 text-center">Opp Count</th>
-                    <th className="py-2.5 px-4 text-right">Total ACV Moved</th>
-                    <th className="py-2.5 px-3 w-8"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs font-semibold">
-                  {positiveRows.map((row) => (
-                    <tr
-                      key={row.id}
-                      onClick={() => row.count > 0 && setActiveModalRow(row)}
-                      className={`transition-colors ${
-                        row.count > 0
-                          ? 'hover:bg-emerald-50/70 cursor-pointer text-slate-900'
-                          : 'opacity-60 text-slate-400 bg-slate-50/50'
-                      }`}
-                    >
-                      <td className="py-3 px-4">
-                        <span className="font-extrabold text-slate-900">{row.label}</span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded-full font-extrabold font-mono text-xs ${
-                          row.count > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
-                        }`}>
-                          {row.count}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right font-black font-mono text-emerald-700">
-                        {formatCurrencyM(row.totalAcv)}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        {row.count > 0 && <ChevronRight className="h-4 w-4 text-emerald-500 inline" />}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Net Movement Total at the bottom of Left Half */}
-          <div className="bg-emerald-50 border-t-2 border-emerald-500 p-4 flex items-center justify-between text-xs font-black text-emerald-950">
-            <span className="flex items-center gap-1.5">
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
-              <span>Net Positive Movement Total:</span>
+            <span className="text-xs font-black font-mono text-emerald-800 bg-emerald-100/90 px-2.5 py-0.5 rounded-full border border-emerald-300">
+              {positiveNet.count} opps &bull; {formatCurrencyM(positiveNet.totalAcv)}
             </span>
-            <div className="flex items-center gap-4">
-              <span className="font-mono bg-emerald-100/90 text-emerald-900 px-2.5 py-0.5 rounded-md border border-emerald-300">
-                {positiveNet.count} deals
-              </span>
-              <span className="text-sm font-black font-mono text-emerald-700">
-                {formatCurrencyM(positiveNet.totalAcv)}
-              </span>
-            </div>
           </div>
 
+          <div className="space-y-2.5">
+            {positiveRows.length > 0 ? (
+              positiveRows.map(row => renderPillRow(row, true))
+            ) : (
+              <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-slate-100 font-medium">
+                No positive movements recorded today
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* RIGHT HALF: Negative Movement (Red Header, Red Text for Numbers) */}
-        <div className="bg-white rounded-3xl border border-red-200 shadow-sm overflow-hidden flex flex-col justify-between">
-          
-          <div>
-            {/* Red Header */}
-            <div className="bg-red-600 px-5 py-3.5 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <XCircle className="h-4.5 w-4.5 text-red-200" />
-                <h4 className="font-black text-xs uppercase tracking-wider">Negative Movement</h4>
-              </div>
-              <span className="text-[11px] font-bold bg-red-700/80 text-red-100 px-2.5 py-0.5 rounded-full border border-red-500/50">
-                Red Stage Slippage
-              </span>
+        {/* RIGHT COLUMN: Negative / Slippage Movements */}
+        <div className="space-y-3">
+          <div className="bg-red-50 px-4 py-2.5 rounded-2xl border border-red-200 flex items-center justify-between text-red-950">
+            <div className="flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-red-600" />
+              <h4 className="font-black text-xs uppercase tracking-wider">Negative / Slippage Changes</h4>
             </div>
-
-            {/* Negative Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-red-50/70 border-b border-red-100 text-[11px] font-black text-red-900 uppercase tracking-wider">
-                    <th className="py-2.5 px-4">Movement Stage</th>
-                    <th className="py-2.5 px-4 text-center">Opp Count</th>
-                    <th className="py-2.5 px-4 text-right">Total ACV Moved</th>
-                    <th className="py-2.5 px-3 w-8"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs font-semibold">
-                  {negativeRows.map((row) => (
-                    <tr
-                      key={row.id}
-                      onClick={() => row.count > 0 && setActiveModalRow(row)}
-                      className={`transition-colors ${
-                        row.count > 0
-                          ? 'hover:bg-red-50/70 cursor-pointer text-slate-900'
-                          : 'opacity-60 text-slate-400 bg-slate-50/50'
-                      }`}
-                    >
-                      <td className="py-3 px-4">
-                        <span className="font-extrabold text-slate-900">{row.label}</span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded-full font-extrabold font-mono text-xs ${
-                          row.count > 0 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-400'
-                        }`}>
-                          {row.count}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right font-black font-mono text-red-600">
-                        {formatCurrencyM(row.totalAcv)}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        {row.count > 0 && <ChevronRight className="h-4 w-4 text-red-500 inline" />}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Net Movement Total at the bottom of Right Half */}
-          <div className="bg-red-50 border-t-2 border-red-500 p-4 flex items-center justify-between text-xs font-black text-red-950">
-            <span className="flex items-center gap-1.5">
-              <TrendingDown className="h-4 w-4 text-red-600" />
-              <span>Net Negative Movement Total:</span>
+            <span className="text-xs font-black font-mono text-red-800 bg-red-100/90 px-2.5 py-0.5 rounded-full border border-red-300">
+              {negativeNet.count} opps &bull; {formatCurrencyM(negativeNet.totalAcv)}
             </span>
-            <div className="flex items-center gap-4">
-              <span className="font-mono bg-red-100/90 text-red-900 px-2.5 py-0.5 rounded-md border border-red-300">
-                {negativeNet.count} deals
-              </span>
-              <span className="text-sm font-black font-mono text-red-600">
-                {formatCurrencyM(negativeNet.totalAcv)}
-              </span>
-            </div>
           </div>
 
+          <div className="space-y-2.5">
+            {negativeRows.length > 0 ? (
+              negativeRows.map(row => renderPillRow(row, false))
+            ) : (
+              <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-slate-100 font-medium">
+                No negative movements recorded today
+              </div>
+            )}
+          </div>
         </div>
 
       </div>
 
-      {/* Row Detail Modal (Appears when clicking any row with > 0 opportunities) */}
+      {/* Row Opportunity Detail Modal */}
       {activeModalRow && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
             
-            {/* Modal Header */}
             <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider ${
-                    positiveRows.some(r => r.id === activeModalRow.id) 
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                      : 'bg-red-100 text-red-800 border border-red-300'
-                  }`}>
-                    {activeModalRow.label}
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200">
+                    {activeModalRow.fromCat} &rarr; {activeModalRow.toCat}
                   </span>
                   <span className="text-xs font-extrabold text-slate-500 font-mono">
-                    ({activeModalRow.opps.length} Opportunities)
+                    ({activeModalRow.opps.length} Opportunities &bull; {formatCurrencyM(activeModalRow.totalAcv)})
                   </span>
                 </div>
-                <h3 className="text-base font-black text-slate-900">
-                  Itemized Opportunities Moved in this Stage
+                <h3 className="text-base font-black text-slate-900 mt-0.5">
+                  Itemized Opportunities in this Movement Stage
                 </h3>
               </div>
 
@@ -467,14 +395,13 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
               </button>
             </div>
 
-            {/* Modal Table Body */}
             <div className="overflow-y-auto p-5 space-y-3">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                     <th className="py-2.5 px-3">Opportunity Name</th>
                     <th className="py-2.5 px-3">Region</th>
-                    <th className="py-2.5 px-3">Stage Movement</th>
+                    <th className="py-2.5 px-3">Stage Shift</th>
                     <th className="py-2.5 px-3 text-right">ACV Amount</th>
                   </tr>
                 </thead>
@@ -524,7 +451,6 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
               </table>
             </div>
 
-            {/* Modal Footer */}
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
               <span className="text-slate-500 font-medium">Click any opportunity row to open full drawer details</span>
               <button
@@ -539,7 +465,7 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
         </div>
       )}
 
-      {/* Fallback Drawer if onSelectOpp wasn't provided */}
+      {/* Fallback Drawer */}
       {!onSelectOpp && (
         <OpportunityDrawer
           oppId={drawerOppId}
