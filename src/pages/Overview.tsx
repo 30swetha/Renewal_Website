@@ -59,23 +59,23 @@ export const OverviewPage: React.FC = () => {
     <div className="space-y-6 pb-16">
       
       {/* 1. Hero Dynamic Headline Banner */}
-      <div className="bg-gradient-to-r from-navy-950 via-navy-900 to-indigo-950 p-6 rounded-3xl text-white shadow-xl border border-navy-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-blue-50 via-slate-50 to-indigo-50/70 p-6 rounded-3xl text-slate-900 shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-blue-400 font-extrabold text-xs uppercase tracking-wider">
-            <Sparkles className="h-4 w-4 text-amber-400 animate-pulse" />
+          <div className="flex items-center gap-2 text-blue-700 font-extrabold text-xs uppercase tracking-wider">
+            <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
             <span>Daily Intelligence synthesis &bull; 2026-10-06</span>
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight leading-snug">
-            ACV is up <strong className="text-emerald-400">+${(netAcvChange / 1e6).toFixed(2)}M</strong> and <strong className="text-blue-300">+{comparison.countDelta} opportunities</strong> since yesterday.
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-snug">
+            ACV is up <strong className="text-emerald-700">+${(netAcvChange / 1e6).toFixed(2)}M</strong> and <strong className="text-blue-700">+{comparison.countDelta} opportunities</strong> since yesterday.
           </h1>
-          <p className="text-xs text-slate-300 max-w-3xl">
-            Commit moved <strong className="text-blue-300">$5.65M</strong> mostly into Closed. Total active pipeline stands at <strong className="text-white">${(totalTodayAcv / 1e6).toFixed(2)}M</strong> across {todayOpps.length} contracts.
+          <p className="text-xs text-slate-600 max-w-3xl">
+            Commit moved <strong className="text-blue-700 font-bold">$5.65M</strong> mostly into Closed. Total active pipeline stands at <strong className="text-slate-900 font-extrabold">${(totalTodayAcv / 1e6).toFixed(2)}M</strong> across {todayOpps.length} contracts.
           </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className="px-3 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-bold flex items-center gap-1.5">
-            <CheckCircle2 className="h-4 w-4" />
+          <span className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             <span>Target Achieved</span>
           </span>
         </div>
