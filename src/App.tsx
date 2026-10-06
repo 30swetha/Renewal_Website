@@ -8,6 +8,8 @@ import BusinessUnitsPage from './pages/BusinessUnits';
 import RegionsPage from './pages/Regions';
 import ExplorePage from './pages/Explore';
 import HistoryPage from './pages/History';
+import InsightsPage from './pages/Insights';
+import AssistantPage from './pages/AssistantPage';
 import { Login } from './pages/Login';
 
 export function App() {
@@ -21,6 +23,8 @@ export function App() {
           <Route path="/" element={<Navigate to="/renewals-hub" replace />} />
           <Route path="/renewals-hub" element={<RenewalsSummaryDashboard />} />
           <Route path="/dashboard" element={<OverviewPage />} />
+          <Route path="/insights" element={<InsightsPage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/expiry" element={<ExpiryPage />} />
           <Route path="/approvals" element={<ApprovalsPage />} />
           <Route path="/business-units" element={<BusinessUnitsPage />} />

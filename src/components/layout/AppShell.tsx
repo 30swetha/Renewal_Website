@@ -19,6 +19,8 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { CommandPalette } from '../ui/CommandPalette';
+import { DockedAssistantPanel } from '../assistant/DockedAssistantPanel';
+import { TrendingUp, Bot } from 'lucide-react';
 
 export const AppShell: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -54,6 +56,8 @@ export const AppShell: React.FC = () => {
   const navItems = [
     { label: 'Renewals & Comparison Hub', path: '/renewals-hub', icon: FileSpreadsheet },
     { label: 'Overview ("What Changed")', path: '/dashboard', icon: Layers },
+    { label: 'Predictive Insights', path: '/insights', icon: TrendingUp },
+    { label: 'AI Copilot Assistant', path: '/assistant', icon: Bot },
     { label: 'Expiry Heatmap', path: '/expiry', icon: Calendar },
     { label: 'Approvals Funnel', path: '/approvals', icon: ShieldCheck },
     { label: 'Business Units', path: '/business-units', icon: BarChart2 },
@@ -218,6 +222,9 @@ export const AppShell: React.FC = () => {
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
       />
+
+      {/* Docked AI Assistant Panel on Every Page */}
+      <DockedAssistantPanel />
 
     </div>
   );
