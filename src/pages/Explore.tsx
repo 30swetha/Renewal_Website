@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { FileText, Download, Bookmark } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { FileText, Download, Bookmark, RotateCcw, Filter } from 'lucide-react';
 import { DataTable } from '../components/ui/DataTable';
 import type { ColumnDef } from '../components/ui/DataTable';
 import { Badge } from '../components/ui/Badge';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { db } from '../lib/database';
 import type { OpportunitySnapshotRecord } from '../lib/database';
+import { seedStarterSnapshots } from '../lib/seedScript';
 
 export const ExplorePage: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
@@ -17,30 +18,119 @@ export const ExplorePage: React.FC = () => {
   const [selectedApproval, setSelectedApproval] = useState<string>('All');
   const [selectedQuarter, setSelectedQuarter] = useState<string>('All');
 
-  const allOpps = db.getOpportunitiesForDate('2026-10-06');
+  // Ensure dataset is available
+  seedStarterSnapshots();
+  let allOpps = db.getOpportunitiesForDate('2026-10-06');
+  if (allOpps.length === 0) {
+    allOpps = db.getOpportunitiesForDate('2026-10-05');
+  }
 
-  // Filter Logic
-  const filteredOpps = allOpps.filter(opp => {
-    if (selectedRegion !== 'All' && opp.region !== selectedRegion) return false;
-    if (selectedBu !== 'All' && !opp.business_unit.includes(selectedBu)) return false;
-    if (selectedCategory !== 'All' && opp.forecast_category !== selectedCategory) return false;
-    if (selectedApproval !== 'All' && !opp.approval_status.includes(selectedApproval)) return false;
-    if (selectedQuarter !== 'All' && opp.expiry_quarter !== selectedQuarter) return false;
-    return true;
-  });
+  // Dynamically extract unique filter options from real dataset records
+  const dynamicRegions = useMemo(() => {
+    const set = new Set<string>();
+    allOpps.forEach(o => {
+      if (o.region) set.add(o.region);
+      if (o.sub_region) set.add(o.sub_region);
+    });
+    return Array.from(set).sort();
+  }, [allOpps]);
 
-  // Saved Views Handler
-  const applySavedView = (view: 'pending' | 'highRisk' | 'q3Exp') => {
+  const dynamicBus = useMemo(() => {
+    const set = new Set<string>();
+    allOpps.forEach(o => {
+      if (o.business_unit) {
+        o.business_unit.split(';').map(u => u.trim()).forEach(u => {
+          if (u) set.add(u);
+        });
+      }
+    });
+    return Array.from(set).sort();
+  }, [allOpps]);
+
+  const dynamicCategories = useMemo(() => {
+    const set = new Set<string>();
+    allOpps.forEach(o => { if (o.forecast_category) set.add(o.forecast_category); });
+    return Array.from(set).sort();
+  }, [allOpps]);
+
+  const dynamicApprovals = useMemo(() => {
+    const set = new Set<string>();
+    allOpps.forEach(o => { if (o.approval_status) set.add(o.approval_status); });
+    return Array.from(set).sort();
+  }, [allOpps]);
+
+  const dynamicQuarters = useMemo(() => {
+    const set = new Set<string>();
+    allOpps.forEach(o => { if (o.expiry_quarter) set.add(o.expiry_quarter); });
+    return Array.from(set).sort();
+  }, [allOpps]);
+
+  // Flexible Filter Logic
+  const filteredOpps = useMemo(() => {
+    return allOpps.filter(opp => {
+      // Region Match
+      if (selectedRegion !== 'All') {
+        const rMatch = (opp.region || '').toLowerCase().includes(selectedRegion.toLowerCase()) || 
+                       (opp.sub_region || '').toLowerCase().includes(selectedRegion.toLowerCase());
+        if (!rMatch) return false;
+      }
+
+      // BU Match
+      if (selectedBu !== 'All') {
+        const buMatch = (opp.business_unit || '').toLowerCase().includes(selectedBu.toLowerCase());
+        if (!buMatch) return false;
+      }
+
+      // Forecast Category Match
+      if (selectedCategory !== 'All') {
+        if (opp.forecast_category.toLowerCase() !== selectedCategory.toLowerCase()) return false;
+      }
+
+      // Approval Status Match
+      if (selectedApproval !== 'All') {
+        const appMatch = (opp.approval_status || '').toLowerCase().includes(selectedApproval.toLowerCase());
+        if (!appMatch) return false;
+      }
+
+      // Quarter Match
+      if (selectedQuarter !== 'All') {
+        if (opp.expiry_quarter.toLowerCase() !== selectedQuarter.toLowerCase()) return false;
+      }
+
+      return true;
+    });
+  }, [allOpps, selectedRegion, selectedBu, selectedCategory, selectedApproval, selectedQuarter]);
+
+  const isFilterActive = selectedRegion !== 'All' || selectedBu !== 'All' || selectedCategory !== 'All' || selectedApproval !== 'All' || selectedQuarter !== 'All';
+
+  const handleResetFilters = () => {
+    setSelectedRegion('All');
+    setSelectedBu('All');
+    setSelectedCategory('All');
+    setSelectedApproval('All');
+    setSelectedQuarter('All');
+  };
+
+  // Saved Views Handlers
+  const applySavedView = (view: 'pending' | 'unapproved' | 'q3Exp') => {
     if (view === 'pending') {
-      setSelectedApproval('Pending');
+      setSelectedApproval(dynamicApprovals.find(a => a.toLowerCase().includes('pending')) || 'Pending Approval');
       setSelectedCategory('All');
       setSelectedQuarter('All');
-    } else if (view === 'highRisk') {
+      setSelectedRegion('All');
+      setSelectedBu('All');
+    } else if (view === 'unapproved') {
       setSelectedCategory('Pipeline');
-      setSelectedApproval('Blank');
+      setSelectedApproval('All');
+      setSelectedQuarter('All');
+      setSelectedRegion('All');
+      setSelectedBu('All');
     } else if (view === 'q3Exp') {
-      setSelectedQuarter('Q3-2026');
+      setSelectedQuarter(dynamicQuarters.find(q => q.includes('Q3')) || 'Q3-2026');
       setSelectedCategory('Commit');
+      setSelectedApproval('All');
+      setSelectedRegion('All');
+      setSelectedBu('All');
     }
   };
 
@@ -147,7 +237,7 @@ export const ExplorePage: React.FC = () => {
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <FileText className="h-5 w-5 text-blue-600" />
-            <span>Explore Portfolio & Contract Registry</span>
+            <span>Explore Portfolio &amp; Contract Registry</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
             Search, filter, and inspect detailed opportunity line-items across snapshots
@@ -165,107 +255,126 @@ export const ExplorePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Saved Views Preset Buttons */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold">
-        <span className="text-slate-400 flex items-center gap-1.5 shrink-0 pr-2">
-          <Bookmark className="h-4 w-4 text-blue-600" />
-          <span>Quick Presets:</span>
-        </span>
-        <button
-          onClick={() => applySavedView('pending')}
-          className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl cursor-pointer shadow-2xs"
-        >
-          Pending Approvals
-        </button>
-        <button
-          onClick={() => applySavedView('highRisk')}
-          className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl cursor-pointer shadow-2xs"
-        >
-          Unapproved Pipeline
-        </button>
-        <button
-          onClick={() => applySavedView('q3Exp')}
-          className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl cursor-pointer shadow-2xs"
-        >
-          Q3 Commit Expiries
-        </button>
+      {/* Quick Presets & Active Results Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-slate-400 flex items-center gap-1.5 shrink-0 pr-1">
+            <Bookmark className="h-4 w-4 text-blue-600" />
+            <span>Quick Presets:</span>
+          </span>
+          <button
+            onClick={() => applySavedView('pending')}
+            className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl cursor-pointer shadow-2xs whitespace-nowrap"
+          >
+            Pending Approvals
+          </button>
+          <button
+            onClick={() => applySavedView('unapproved')}
+            className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl cursor-pointer shadow-2xs whitespace-nowrap"
+          >
+            Pipeline Deals
+          </button>
+          <button
+            onClick={() => applySavedView('q3Exp')}
+            className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl cursor-pointer shadow-2xs whitespace-nowrap"
+          >
+            Q3 Commit Expiries
+          </button>
+        </div>
+
+        {isFilterActive && (
+          <button
+            onClick={handleResetFilters}
+            className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl cursor-pointer flex items-center gap-1.5 shrink-0 transition-colors"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>Reset All Filters</span>
+          </button>
+        )}
       </div>
 
-      {/* Interactive Filter Toolbar */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
-        <div>
-          <label className="block text-[11px] font-bold text-slate-400 mb-1">Region</label>
-          <select
-            value={selectedRegion}
-            onChange={e => setSelectedRegion(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none"
-          >
-            <option value="All">All Regions</option>
-            <option value="Middle East">Middle East</option>
-            <option value="North America East">North America East</option>
-            <option value="North America West">North America West</option>
-            <option value="EMEA Central">EMEA Central</option>
-            <option value="APAC South">APAC South</option>
-          </select>
+      {/* Interactive Dynamic Filter Toolbar */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <div className="flex items-center justify-between text-xs font-extrabold text-slate-500 border-b border-slate-100 pb-2">
+          <span className="flex items-center gap-1.5">
+            <Filter className="h-3.5 w-3.5 text-blue-600" />
+            <span>Filter Criteria</span>
+          </span>
+          <span className="text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+            Showing {filteredOpps.length} of {allOpps.length} contracts
+          </span>
         </div>
 
-        <div>
-          <label className="block text-[11px] font-bold text-slate-400 mb-1">Business Unit</label>
-          <select
-            value={selectedBu}
-            onChange={e => setSelectedBu(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none"
-          >
-            <option value="All">All Business Units</option>
-            <option value="Enterprise 5G">Enterprise 5G</option>
-            <option value="Cloud Voice">Cloud Voice</option>
-            <option value="SIP Trunking">SIP Trunking</option>
-            <option value="Managed IoT">Managed IoT</option>
-          </select>
-        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 mb-1">Region</label>
+            <select
+              value={selectedRegion}
+              onChange={e => setSelectedRegion(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+            >
+              <option value="All">All Regions</option>
+              {dynamicRegions.map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
 
-        <div>
-          <label className="block text-[11px] font-bold text-slate-400 mb-1">Forecast Category</label>
-          <select
-            value={selectedCategory}
-            onChange={e => setSelectedCategory(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none"
-          >
-            <option value="All">All Categories</option>
-            <option value="Closed">Closed</option>
-            <option value="Commit">Commit</option>
-            <option value="Best Case">Best Case</option>
-            <option value="Pipeline">Pipeline</option>
-          </select>
-        </div>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 mb-1">Business Unit</label>
+            <select
+              value={selectedBu}
+              onChange={e => setSelectedBu(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+            >
+              <option value="All">All Business Units</option>
+              {dynamicBus.map(b => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
 
-        <div>
-          <label className="block text-[11px] font-bold text-slate-400 mb-1">Approval Status</label>
-          <select
-            value={selectedApproval}
-            onChange={e => setSelectedApproval(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none"
-          >
-            <option value="All">All Statuses</option>
-            <option value="Approved">Approved</option>
-            <option value="Pending">Pending Approval</option>
-            <option value="Blank">Blank</option>
-          </select>
-        </div>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 mb-1">Forecast Category</label>
+            <select
+              value={selectedCategory}
+              onChange={e => setSelectedCategory(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+            >
+              <option value="All">All Categories</option>
+              {dynamicCategories.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
 
-        <div>
-          <label className="block text-[11px] font-bold text-slate-400 mb-1">Expiry Quarter</label>
-          <select
-            value={selectedQuarter}
-            onChange={e => setSelectedQuarter(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none"
-          >
-            <option value="All">All Quarters</option>
-            <option value="Q1-2026">Q1-2026</option>
-            <option value="Q2-2026">Q2-2026</option>
-            <option value="Q3-2026">Q3-2026</option>
-            <option value="Q4-2026">Q4-2026</option>
-          </select>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 mb-1">Approval Status</label>
+            <select
+              value={selectedApproval}
+              onChange={e => setSelectedApproval(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+            >
+              <option value="All">All Statuses</option>
+              {dynamicApprovals.map(a => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 mb-1">Expiry Quarter</label>
+            <select
+              value={selectedQuarter}
+              onChange={e => setSelectedQuarter(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+            >
+              <option value="All">All Quarters</option>
+              {dynamicQuarters.map(q => (
+                <option key={q} value={q}>{q}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
