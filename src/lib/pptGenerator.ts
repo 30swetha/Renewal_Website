@@ -284,3 +284,92 @@ export const generatePPTX = async (data: DashboardData): Promise<void> => {
   // Download PPTX
   await pptx.writeFile({ fileName: `Renewals_Daily_Update_${data.reportDate}.pptx` });
 };
+
+/**
+ * Generate PPTX PowerPoint deck directly from multi-sheet parsed Excel files
+ */
+export const generateMultiSheetPPTX = async (sheets: any[], reportName: string = 'Renewals_MultiSheet_Analysis'): Promise<void> => {
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_169';
+  pptx.title = reportName;
+  pptx.company = 'Mobileum RenewIQ';
+
+  const NAVY_DARK = '0B192C';
+  const BLUE_PRIMARY = '2563EB';
+  const WHITE = 'FFFFFF';
+  const TEXT_SLATE = '475569';
+
+  // Title Slide
+  const slide1 = pptx.addSlide();
+  slide1.background = { color: NAVY_DARK };
+  slide1.addText('Executive Renewal Insights & Multi-Sheet Deck', {
+    x: 1.0, y: 2.2, w: 10.5, h: 1.2,
+    fontSize: 28, bold: true, color: WHITE, fontFace: 'Calibri'
+  });
+  slide1.addText(`Automated Visualizations & Data Analysis across ${sheets.length} Excel Sheets`, {
+    x: 1.0, y: 3.5, w: 10.5, h: 0.8,
+    fontSize: 16, color: '93C5FD', fontFace: 'Calibri'
+  });
+  slide1.addText(`Generated: ${new Date().toISOString().split('T')[0]} | Mobileum RenewIQ`, {
+    x: 1.0, y: 5.5, w: 10.5, h: 0.5,
+    fontSize: 12, italic: true, color: 'CBD5E1', fontFace: 'Calibri'
+  });
+
+  // Slide per Sheet Tab
+  sheets.forEach((s) => {
+    const slide = pptx.addSlide();
+    
+    // Header banner
+    slide.addShape(pptx.ShapeType.rect, {
+      x: 0, y: 0, w: '100%', h: 0.8,
+      fill: { color: NAVY_DARK }
+    });
+    slide.addText(`${s.sheetName} (${s.sourceFile})`, {
+      x: 0.5, y: 0.15, w: 10, h: 0.5,
+      fontSize: 18, bold: true, color: WHITE, fontFace: 'Calibri'
+    });
+
+    // Narrative Summary box (Left side)
+    slide.addText('Executive Summary & Insights', {
+      x: 0.5, y: 1.0, w: 5.5, h: 0.4,
+      fontSize: 14, bold: true, color: BLUE_PRIMARY, fontFace: 'Calibri'
+    });
+
+    const narrativeBulletText = [
+      s.narrativeSummary,
+      ...(s.keyInsights || []).map((k: string) => `• ${k}`),
+    ].join('\n\n');
+
+    slide.addText(narrativeBulletText, {
+      x: 0.5, y: 1.4, w: 5.8, h: 5.2,
+      fontSize: 10, color: TEXT_SLATE, fontFace: 'Calibri', align: 'left', valign: 'top'
+    });
+
+    // Chart / Data Visual on Right Side
+    if (s.chartData && s.chartData.length > 0) {
+      const chartDataFormatted = [
+        {
+          name: s.chartTitle || 'Metric Value',
+          labels: s.chartData.map((d: any) => String(d.label)),
+          values: s.chartData.map((d: any) => Number(d.value))
+        }
+      ];
+
+      const isPie = s.chartType === 'pie';
+      slide.addChart(isPie ? pptx.ChartType.pie : pptx.ChartType.bar, chartDataFormatted, {
+        x: 6.6, y: 1.2, w: 6.0, h: 5.4,
+        title: s.chartTitle || s.sheetName,
+        chartColors: ['2563EB', '10B981', '8B5CF6', 'F59E0B', 'EF4444', '3B82F6']
+      });
+    }
+
+    // Footer
+    slide.addText(`Mobileum RenewIQ | Sheet: ${s.sheetName}`, {
+      x: 0.5, y: 7.05, w: 10, h: 0.3,
+      fontSize: 10, italic: true, color: TEXT_SLATE, fontFace: 'Calibri'
+    });
+  });
+
+  await pptx.writeFile({ fileName: `${reportName}_${new Date().toISOString().split('T')[0]}.pptx` });
+};
+
