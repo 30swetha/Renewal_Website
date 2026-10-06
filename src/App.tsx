@@ -1,26 +1,32 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Layout } from './components/layout/Layout';
+import { AppShell } from './components/layout/AppShell';
+import OverviewPage from './pages/Overview';
+import ExpiryPage from './pages/Expiry';
+import ApprovalsPage from './pages/Approvals';
+import BusinessUnitsPage from './pages/BusinessUnits';
+import RegionsPage from './pages/Regions';
+import ExplorePage from './pages/Explore';
+import HistoryPage from './pages/History';
 import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
-import { History } from './pages/History';
-import { Settings } from './pages/Settings';
 
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Login Route */}
         <Route path="/login" element={<Login />} />
 
-        {/* Protected Layout Routes */}
-        <Route element={<Layout />}>
+        {/* App Shell Protected Routes */}
+        <Route element={<AppShell />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/dashboard" element={<OverviewPage />} />
+          <Route path="/expiry" element={<ExpiryPage />} />
+          <Route path="/approvals" element={<ApprovalsPage />} />
+          <Route path="/business-units" element={<BusinessUnitsPage />} />
+          <Route path="/regions" element={<RegionsPage />} />
+          <Route path="/explore" element={<ExplorePage />} />
+          <Route path="/history" element={<HistoryPage />} />
         </Route>
 
-        {/* Fallback Route */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>

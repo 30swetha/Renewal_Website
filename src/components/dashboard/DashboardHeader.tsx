@@ -11,8 +11,6 @@ import {
   FileCheck,
   Presentation,
   Download,
-  BarChart2,
-  PieChart,
   Play,
   Plus,
   Trash2,
@@ -35,7 +33,6 @@ interface DashboardHeaderProps {
   error: string | null;
   savedSuccess: boolean;
   data: DashboardData;
-  onOpenAnalysisModal: () => void;
 }
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -51,7 +48,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   error,
   savedSuccess,
   data,
-  onOpenAnalysisModal,
 }) => {
   const singleInputRef = useRef<HTMLInputElement>(null);
   
@@ -144,7 +140,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             <span>Mobileum RenewIQ Platform</span>
           </div>
           <h2 className="text-2xl font-black text-navy-900 tracking-tight">
-            Quarterly Expiry & Variance Finder
+            Quarterly Expiry & Variance Analytics
           </h2>
         </div>
 
@@ -173,7 +169,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   : 'text-slate-600 hover:text-navy-900'
               }`}
             >
-              Summary File
+              Summary Excel File
             </button>
             <button
               onClick={() => setMode('finder')}
@@ -183,19 +179,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   : 'text-slate-600 hover:text-navy-900'
               }`}
             >
-              Changes Finder (2-5 Files)
+              Compare Changed Files (2-5)
             </button>
           </div>
-
-          {/* Analysis Stats Button */}
-          <button
-            onClick={onOpenAnalysisModal}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl text-xs font-extrabold transition-all shadow-md shadow-blue-500/20 cursor-pointer ring-2 ring-blue-400/30"
-          >
-            <PieChart className="h-4 w-4 text-blue-100" />
-            <span>Analysis Stats</span>
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-          </button>
 
           {/* Export Dropdown Group */}
           <div className="relative">
@@ -272,10 +258,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </div>
 
             <h3 className="font-extrabold text-navy-900 text-sm">
-              Upload Expiry Q3 Summary Excel / CSV File
+              Upload Expiry Q3 Summary or Changed Excel / CSV File
             </h3>
             <p className="text-xs text-slate-500 mt-1 max-w-md">
-              Accepts sheets: <span className="font-mono text-blue-600 font-semibold">Expiry Q3 Summary</span>, <span className="font-mono text-blue-600 font-semibold">ApprovalStatus_Summary</span>, and <span className="font-mono text-blue-600 font-semibold">Top 10 Region Summary</span>.
+              Upload your updated Excel file to instantly generate key insights & stats.
             </p>
 
             <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
@@ -286,7 +272,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 className="px-4 py-2.5 bg-white hover:bg-slate-100 text-navy-900 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 border border-slate-300 shadow-2xs"
               >
                 <FileSpreadsheet className="h-4 w-4 text-blue-600" />
-                <span>{selectedSingleFile ? selectedSingleFile.name : 'Select .XLSX / .CSV File'}</span>
+                <span>{selectedSingleFile ? selectedSingleFile.name : 'Select Excel / CSV File'}</span>
               </button>
 
               {/* Generate Analysis Primary CTA Button */}
@@ -297,7 +283,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 className="px-6 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-extrabold rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2"
               >
                 <Play className="h-4 w-4 fill-current text-white" />
-                <span>{loading ? 'Processing Sheet...' : 'Generate Analysis & View Stats'}</span>
+                <span>{loading ? 'Processing Sheet...' : 'Generate Analysis & Stats'}</span>
               </button>
             </div>
 
@@ -387,15 +373,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </span>
 
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onOpenAnalysisModal}
-                className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-navy-900 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                <BarChart2 className="h-4 w-4 text-blue-600" />
-                <span>View Analysis Stats</span>
-              </button>
-
               <button
                 type="submit"
                 disabled={multiFiles.filter(Boolean).length < 2 || loading}

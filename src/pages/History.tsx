@@ -1,166 +1,147 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  History as HistoryIcon, 
-  Calendar, 
-  Trash2, 
-  ExternalLink, 
-  Database,
-  Search
-} from 'lucide-react';
-import { getSavedReports, deleteSavedReport } from '../lib/storage';
-import type { SavedReport } from '../lib/storage';
+import React, { useState } from 'react';
+import { History as HistoryIcon, ArrowRight, FileSpreadsheet, Calendar } from 'lucide-react';
+import { compareSnapshotsApi, getSnapshotsApi } from '../lib/api';
+import { Badge } from '../components/ui/Badge';
+import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 
-export const History: React.FC = () => {
-  const navigate = useNavigate();
-  const [reports, setReports] = useState<SavedReport[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+export const HistoryPage: React.FC = () => {
+  const snapshots = getSnapshotsApi();
 
-  useEffect(() => {
-    loadReports();
-  }, []);
+  const [fromDate, setFromDate] = useState<string>('2026-10-05');
+  const [toDate, setToDate] = useState<string>('2026-10-06');
+  const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
 
-  const loadReports = async () => {
-    setLoading(true);
-    const data = await getSavedReports();
-    setReports(data);
-    setLoading(false);
-  };
-
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('Delete this report snapshot?')) {
-      await deleteSavedReport(id);
-      await loadReports();
-    }
-  };
-
-  const handleReopen = (report: SavedReport) => {
-    // Navigate to dashboard with report date state
-    navigate('/dashboard', { state: { loadReport: report.data } });
-  };
-
-  const filteredReports = reports.filter(r => {
-    return (
-      r.reportDate.includes(searchTerm) ||
-      r.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.mode.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  });
-
-  const formatMillions = (val: number) => `$${(val / 1e6).toFixed(2)}M`;
+  const comparison = compareSnapshotsApi(fromDate, toDate);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6 pb-16">
+      
+      {/* Top Header */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-blue-600 font-bold text-xs uppercase tracking-wider mb-1">
-            <HistoryIcon className="h-4 w-4" />
-            <span>Past Daily Snapshots</span>
-          </div>
-          <h2 className="text-2xl font-extrabold text-navy-900 tracking-tight">
-            Saved Daily Reports History
-          </h2>
+          <h1 className="text-xl font-black text-navy-900 dark:text-white flex items-center gap-2">
+            <HistoryIcon className="h-5 w-5 text-blue-600" />
+            <span>Upload Snapshots History & Date Comparison</span>
+          </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Reopen past uploaded summary files or raw data change logs saved to Supabase Postgres.
+            Audit history log of all ingested snapshots and compare any two arbitrary dates
           </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by date or mode..."
-              className="pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
-            />
-          </div>
         </div>
       </div>
 
-      {/* Reports Grid */}
-      {loading ? (
-        <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center text-slate-500 text-xs font-semibold">
-          Loading saved report ledger from Supabase...
-        </div>
-      ) : filteredReports.length === 0 ? (
-        <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
-          <Database className="h-10 w-10 text-slate-300 mx-auto" />
-          <h3 className="font-bold text-navy-900 text-sm">No Saved Reports Found</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Upload a file on the Dashboard page and click "Save Report" to persist daily snapshots here.
-          </p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all"
-          >
-            Go to Dashboard
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredReports.map((report) => (
-            <div
-              key={report.id}
-              onClick={() => handleReopen(report)}
-              className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col justify-between space-y-4 group"
+      {/* Compare Any Two Dates Control Bar */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+        <h3 className="font-extrabold text-navy-900 dark:text-white text-sm flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-blue-600" />
+          <span>Compare Any Two Dates View</span>
+        </h3>
+
+        <div className="flex flex-wrap items-center gap-4 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-bold text-slate-500">From Date:</span>
+            <select
+              value={fromDate}
+              onChange={e => setFromDate(e.target.value)}
+              className="p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-navy-900 dark:text-white"
             >
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
-                    <Calendar className="h-3.5 w-3.5" />
-                    {report.reportDate}
-                  </span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
-                    report.mode === 'finder' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-800'
-                  }`}>
-                    {report.mode === 'finder' ? 'Changes Finder' : 'Summary File'}
-                  </span>
-                </div>
+              {snapshots.map(s => (
+                <option key={s.snapshot_date} value={s.snapshot_date}>{s.snapshot_date}</option>
+              ))}
+            </select>
+          </div>
 
-                <div className="mt-4 space-y-1">
-                  <p className="text-2xl font-black text-navy-900">
-                    {formatMillions(report.grandTotalAmount)}
-                  </p>
-                  <p className="text-xs text-slate-500 font-medium">
-                    {report.grandTotalCount} active contracts
-                  </p>
-                </div>
+          <ArrowRight className="h-4 w-4 text-slate-400" />
 
-                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span className="text-slate-500 font-medium">T-Y Change:</span>
-                  <span className={`font-bold ${report.tyAmountChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {report.tyAmountChange >= 0 ? '+' : ''}{formatMillions(report.tyAmountChange)}
-                  </span>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-bold text-slate-500">To Date:</span>
+            <select
+              value={toDate}
+              onChange={e => setToDate(e.target.value)}
+              className="p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-navy-900 dark:text-white"
+            >
+              {snapshots.map(s => (
+                <option key={s.snapshot_date} value={s.snapshot_date}>{s.snapshot_date}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="ml-auto text-xs font-bold text-navy-900 dark:text-white">
+            <span>Net ACV Variance: </span>
+            <span className={comparison.acvDelta >= 0 ? 'text-emerald-600 font-black' : 'text-red-600 font-black'}>
+              {comparison.acvDelta >= 0 ? '+' : ''}${(comparison.acvDelta / 1e6).toFixed(2)}M
+            </span>
+          </div>
+        </div>
+
+        {/* Comparison Change Log Results */}
+        <div className="space-y-3">
+          <h4 className="font-bold text-navy-900 dark:text-white text-xs uppercase tracking-wider">
+            Modifications Log ({comparison.changeLog.length} Changes Between {fromDate} and {toDate})
+          </h4>
+
+          {comparison.changeLog.length > 0 ? (
+            <div className="space-y-2">
+              {comparison.changeLog.map(log => (
+                <div
+                  key={log.id}
+                  onClick={() => setSelectedOppId(log.opportunity_id)}
+                  className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60 hover:bg-blue-50/60 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Badge variant={log.change_type === 'NEW' ? 'new' : log.change_type === 'MODIFIED' ? 'modified' : 'removed'}>
+                      {log.change_type}
+                    </Badge>
+                    <div>
+                      <span className="font-bold text-navy-900 dark:text-white">{log.opportunity_name}</span>
+                      <span className="text-[11px] text-slate-400 block">{log.field}: {log.old_value} &rarr; {log.new_value}</span>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-blue-600">{log.opportunity_id}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 italic py-2">No differences logged between selected dates.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Snapshot Upload Timeline */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+        <h3 className="font-extrabold text-navy-900 dark:text-white text-sm">
+          Historical Ingestion Snapshot Records
+        </h3>
+
+        <div className="space-y-3">
+          {snapshots.map(snap => (
+            <div key={snap.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/60 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-100 dark:bg-blue-950 text-blue-600 rounded-xl">
+                  <FileSpreadsheet className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-navy-900 dark:text-white text-sm">Snapshot: {snap.snapshot_date}</h4>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    Source: {snap.source_files.join(', ')} &bull; Uploaded {new Date(snap.uploaded_at).toLocaleString()}
+                  </p>
                 </div>
               </div>
-
-              <div className="pt-2 flex items-center justify-between text-xs border-t border-slate-100 text-slate-400">
-                <span className="text-[10px]">Saved {new Date(report.createdAt).toLocaleDateString()}</span>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={(e) => handleDelete(report.id, e)}
-                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete report snapshot"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-
-                  <span className="inline-flex items-center gap-1 font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
-                    <span>Reopen</span>
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </span>
-                </div>
-              </div>
+              <span className="px-3 py-1 rounded-full bg-navy-900 text-white font-black text-xs">
+                {snap.row_count} Contracts
+              </span>
             </div>
           ))}
         </div>
-      )}
+      </div>
+
+      {/* Opportunity History Drawer */}
+      <OpportunityDrawer
+        oppId={selectedOppId}
+        onClose={() => setSelectedOppId(null)}
+      />
+
     </div>
   );
 };
+
+export default HistoryPage;
