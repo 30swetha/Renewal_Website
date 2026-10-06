@@ -1,37 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { 
   Sparkles, 
-  Layers, 
-  Calendar, 
-  ShieldCheck, 
-  Globe, 
-  FileText, 
-  History as HistoryIcon, 
   Search, 
   Sun, 
-  Moon, 
-  Menu,
-  BarChart2,
-  FileSpreadsheet,
-  TrendingUp,
-  Bot,
-  X
+  Moon
 } from 'lucide-react';
 import { CommandPalette } from '../ui/CommandPalette';
 import { DockedAssistantPanel } from '../assistant/DockedAssistantPanel';
 
 export const AppShell: React.FC = () => {
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [asOfDate, setAsOfDate] = useState('2026-10-06');
-  const [compareDate, setCompareDate] = useState('Yesterday');
   const [loading, setLoading] = useState(true);
 
   // Animated branded initial loading screen
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
+    const timer = setTimeout(() => setLoading(false), 300);
     return () => clearTimeout(timer);
   }, []);
 
@@ -51,19 +36,6 @@ export const AppShell: React.FC = () => {
     return () => window.removeEventListener('open-command-palette', handler);
   }, []);
 
-  const navItems = [
-    { label: 'Renewals & Comparison Hub', path: '/renewals-hub', icon: FileSpreadsheet },
-    { label: 'Overview ("What Changed")', path: '/dashboard', icon: Layers },
-    { label: 'Predictive Insights', path: '/insights', icon: TrendingUp },
-    { label: 'AI Copilot Assistant', path: '/assistant', icon: Bot },
-    { label: 'Expiry Heatmap', path: '/expiry', icon: Calendar },
-    { label: 'Approvals Funnel', path: '/approvals', icon: ShieldCheck },
-    { label: 'Business Units', path: '/business-units', icon: BarChart2 },
-    { label: 'Regions & Sub-Regions', path: '/regions', icon: Globe },
-    { label: 'Explore Portfolio', path: '/explore', icon: FileText },
-    { label: 'Snapshots History', path: '/history', icon: HistoryIcon },
-  ];
-
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col items-center justify-center text-slate-900 space-y-4">
@@ -71,7 +43,7 @@ export const AppShell: React.FC = () => {
           <Sparkles className="h-7 w-7 text-blue-600 animate-spin" />
         </div>
         <h2 className="text-lg font-black tracking-widest uppercase text-slate-900">Mobileum RenewIQ</h2>
-        <p className="text-xs text-slate-500 font-mono animate-pulse">Loading Platform Intelligence...</p>
+        <p className="text-xs text-slate-500 font-mono animate-pulse">Loading Platform...</p>
       </div>
     );
   }
@@ -79,74 +51,39 @@ export const AppShell: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex flex-col">
       
-      {/* Top Header & Navbar Wrapper (Sticky Top Bar) */}
+      {/* Pristine Clean Top Header Ribbon */}
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
-        
-        {/* Top Header Ribbon */}
-        <div className="h-14 px-4 sm:px-6 flex items-center justify-between border-b border-slate-100">
+        <div className="h-14 px-4 sm:px-6 flex items-center justify-between">
           
           {/* Logo & Platform Title */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMobileOpen(!mobileOpen)}
-              className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl"
-            >
-              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-black text-sm shadow-sm">
-                <Sparkles className="h-4.5 w-4.5" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-black text-slate-900 tracking-tight leading-tight">
-                  Mobileum RenewIQ
-                </span>
-                <span className="text-[9.5px] font-bold text-blue-600">
-                  Quarterly Expiry Platform
-                </span>
-              </div>
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-black text-sm shadow-sm">
+              <Sparkles className="h-4.5 w-4.5" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-black text-slate-900 tracking-tight leading-tight">
+                Mobileum RenewIQ
+              </span>
+              <span className="text-[9.5px] font-bold text-blue-600">
+                Quarterly Expiry &amp; Multi-Sheet Platform
+              </span>
             </div>
           </div>
 
-          {/* Right Header Actions (Date Filters & Search) */}
-          <div className="flex items-center gap-2.5">
+          {/* Right Header Controls */}
+          <div className="flex items-center gap-2 text-xs">
             
-            {/* Global Date Picker ("View as of") */}
-            <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl text-xs">
-              <span className="text-slate-500 font-bold text-[11px]">View as of:</span>
-              <input
-                type="date"
-                value={asOfDate}
-                onChange={e => setAsOfDate(e.target.value)}
-                className="bg-transparent font-bold text-slate-900 text-xs focus:outline-none cursor-pointer"
-              />
-            </div>
-
-            {/* Compare With Selector */}
-            <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl text-xs">
-              <span className="text-slate-500 font-bold text-[11px]">Compare with:</span>
-              <select
-                value={compareDate}
-                onChange={e => setCompareDate(e.target.value)}
-                className="bg-transparent font-bold text-slate-900 text-xs focus:outline-none cursor-pointer"
-              >
-                <option value="Yesterday">Yesterday (2026-10-05)</option>
-                <option value="LastWeek">Last Week (2026-09-29)</option>
-              </select>
-            </div>
-
             {/* Command Palette Trigger */}
             <button
               onClick={() => setCommandPaletteOpen(true)}
-              className="p-1.5 px-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer flex items-center gap-2 border border-slate-200 text-xs font-medium"
+              className="p-1.5 px-3 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer flex items-center gap-2 border border-slate-200 font-medium"
             >
               <Search className="h-3.5 w-3.5 text-slate-400" />
-              <span className="hidden sm:inline text-xs text-slate-500">Search</span>
+              <span className="hidden sm:inline text-xs text-slate-500">Search Data</span>
               <kbd className="hidden lg:inline text-[9.5px] bg-slate-200 px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
             </button>
 
-            {/* Theme Toggle */}
+            {/* Light / Dark Theme Toggle */}
             <button
               onClick={() => setDarkMode(!darkMode)}
               className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer border border-slate-200"
@@ -154,76 +91,13 @@ export const AppShell: React.FC = () => {
             >
               {darkMode ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-slate-600" />}
             </button>
+
           </div>
 
         </div>
-
-        {/* Desktop Sleek Top Horizontal Navigation Bar */}
-        <div className="hidden lg:flex items-center px-4 sm:px-6 py-2 overflow-x-auto scrollbar-none gap-1 bg-white">
-          {navItems.map((item) => {
-            const IconComponent = item.icon;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap shrink-0 ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`
-                }
-              >
-                <IconComponent className="h-3.5 w-3.5 shrink-0" />
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
-        </div>
-
       </header>
 
-      {/* Mobile Drawer Navigation Menu */}
-      {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs flex flex-col justify-start">
-          <div className="bg-white border-b border-slate-200 p-4 space-y-3 shadow-2xl">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Navigation Menu</span>
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-900"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <nav className="grid grid-cols-1 gap-1">
-              {navItems.map((item) => {
-                const IconComponent = item.icon;
-                return (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setMobileOpen(false)}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs transition-all ${
-                        isActive
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                      }`
-                    }
-                  >
-                    <IconComponent className="h-4 w-4 shrink-0" />
-                    <span>{item.label}</span>
-                  </NavLink>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
-      )}
-
-      {/* Main Full-Width Content Area */}
+      {/* Main Content Workspace */}
       <main className="flex-1 p-6 max-w-7xl mx-auto w-full bg-slate-50">
         <Outlet />
       </main>
@@ -234,7 +108,7 @@ export const AppShell: React.FC = () => {
         onClose={() => setCommandPaletteOpen(false)}
       />
 
-      {/* Docked AI Assistant Panel on Every Page */}
+      {/* Docked AI Copilot Assistant */}
       <DockedAssistantPanel />
 
     </div>
