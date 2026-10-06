@@ -33,8 +33,19 @@ function generateMockOppsForDate(
   targetAcv: number,
   baselineOpps?: any[]
 ): any[] {
-  const regions = ['Middle East', 'Sub-Saharan Africa', 'North America', 'Europe & UK', 'Asia Pacific', 'LATAM'];
-  const bus = ['Enterprise', 'Mobility', 'Roaming & Network', 'Security & Fraud', 'Enterprise; Mobility'];
+  const regions = [
+    'Middle East', 
+    'North America', 
+    'West Europe', 
+    'AFRICA', 
+    'SEAO', 
+    'South America', 
+    'NASA', 
+    'East Europe', 
+    'NAMR GUAVUS', 
+    'LATAM'
+  ];
+  const bus = ['Enterprise', 'Mobility', 'Roaming & Network', 'Security & Fraud', 'Enterprise 5G'];
   const categories = ['Closed', 'Commit', 'Best Case', 'Pipeline'];
   const approvals = ['Approved', 'Approved-2nd', 'Pending Approval', 'Pending-Approval', 'Blank', 'Rejected'];
 
@@ -47,10 +58,10 @@ function generateMockOppsForDate(
       let cat = b.forecast_category;
       let app = b.approval_status;
 
-      if (dateStr === '2026-10-06' && idx % 35 === 0) {
+      if (dateStr === '2026-10-06' && idx % 28 === 0) {
         cat = 'Closed';
         acv += 150000;
-      } else if (dateStr === '2026-10-06' && idx % 42 === 0) {
+      } else if (dateStr === '2026-10-06' && idx % 34 === 0) {
         cat = 'Commit';
         acv -= 70000;
       }
@@ -85,7 +96,7 @@ function generateMockOppsForDate(
       });
     }
   } else {
-    // Starter generation calibrating Q4-2026 to $41.82M
+    // Starter generation
     const quarters = ['Q1 2026', 'Q2 2026', 'Q3 2026', 'Q4 2026'];
     const avgAcv = targetAcv / targetCount;
 
@@ -97,15 +108,13 @@ function generateMockOppsForDate(
       const reg = regions[i % regions.length];
       const bu = bus[i % bus.length];
 
-      // Service & Close dates
       const serviceStart = '2026-01-01';
       const serviceEnd = '2026-12-31';
       let closeDate = '2026-11-15';
       if (q === 'Q4 2026' && i % 5 === 0) {
-        closeDate = '2027-01-20'; // Slipped to 2027
+        closeDate = '2027-01-20';
       }
 
-      // If Q4, scale ACV to ensure total Q4 equals ~$41.82M
       let acv = Math.round(avgAcv * (0.4 + (i % 10) * 0.15));
       if (q === 'Q4 2026') {
         acv = Math.round((41.82e6 / (targetCount / 4)) * (0.5 + (i % 8) * 0.12));
