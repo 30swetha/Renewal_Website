@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
+import RenewalsSummaryDashboard from './pages/RenewalsSummaryDashboard';
 import OverviewPage from './pages/Overview';
 import ExpiryPage from './pages/Expiry';
 import ApprovalsPage from './pages/Approvals';
@@ -17,7 +18,8 @@ export function App() {
 
         {/* App Shell Protected Routes */}
         <Route element={<AppShell />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/renewals-hub" replace />} />
+          <Route path="/renewals-hub" element={<RenewalsSummaryDashboard />} />
           <Route path="/dashboard" element={<OverviewPage />} />
           <Route path="/expiry" element={<ExpiryPage />} />
           <Route path="/approvals" element={<ApprovalsPage />} />
@@ -27,7 +29,7 @@ export function App() {
           <Route path="/history" element={<HistoryPage />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/renewals-hub" replace />} />
       </Routes>
     </BrowserRouter>
   );

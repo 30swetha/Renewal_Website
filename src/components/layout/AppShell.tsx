@@ -15,7 +15,8 @@ import {
   ChevronRight, 
   Menu,
   Wifi,
-  BarChart2
+  BarChart2,
+  FileSpreadsheet
 } from 'lucide-react';
 import { CommandPalette } from '../ui/CommandPalette';
 
@@ -51,6 +52,7 @@ export const AppShell: React.FC = () => {
   }, []);
 
   const navItems = [
+    { label: 'Renewals & Comparison Hub', path: '/renewals-hub', icon: FileSpreadsheet },
     { label: 'Overview ("What Changed")', path: '/dashboard', icon: Layers },
     { label: 'Expiry Heatmap', path: '/expiry', icon: Calendar },
     { label: 'Approvals Funnel', path: '/approvals', icon: ShieldCheck },
