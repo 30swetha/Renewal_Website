@@ -4,6 +4,7 @@ import {
   Sparkles, 
   Layers, 
   Calendar, 
+  Clock,
   ShieldCheck, 
   Globe, 
   Search, 
@@ -49,14 +50,14 @@ export const AppShell: React.FC = () => {
     return () => window.removeEventListener('open-command-palette', handler);
   }, []);
 
-  // Clean Top Navigation Tabs (Overview, Expiry Heatmap, Approval Funnel, Business Unit, Region, Q4 FY26, Data)
+  // Top Navigation Tabs (Overview, Expiry, Approval Funnel, Business Unit, Region, Delayed Renewals, Data)
   const navItems = [
     { label: 'Overview', path: '/dashboard', icon: Layers },
-    { label: 'Expiry Heatmap', path: '/expiry', icon: Calendar },
+    { label: 'Expiry', path: '/expiry', icon: Calendar },
     { label: 'Approval Funnel', path: '/approvals', icon: ShieldCheck },
     { label: 'Business Unit', path: '/business-units', icon: BarChart2 },
     { label: 'Region', path: '/regions', icon: Globe },
-    { label: 'Q4 FY26', path: '/q4-fy26', icon: Sparkles },
+    { label: 'Delayed Renewals', path: '/delayed-renewals', icon: Clock },
     { label: 'Data', path: '/renewals-hub', icon: FileSpreadsheet },
   ];
 

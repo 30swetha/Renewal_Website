@@ -8,58 +8,69 @@ import {
   FileSpreadsheet, 
   ArrowRight,
   TrendingUp,
-  CheckCircle2
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getSharedDataset, formatCurrencyM, useDatasetRefresh } from '../lib/sharedDataLayer';
+import { formatCurrencyM, useSharedDatasets } from '../lib/sharedDataLayer';
 import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
+import { DualComparisonKpiCard } from '../components/ui/DualComparisonKpiCard';
 
 export const OverviewPage: React.FC = () => {
   const navigate = useNavigate();
   const [filters, setFilters] = useState<GlobalFilterState>(INITIAL_FILTERS);
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
 
-  const refreshKey = useDatasetRefresh();
-
-  // Load raw dataset for Today (latest) and Yesterday
-  const rawTodayOpps = useMemo(() => getSharedDataset(), [refreshKey]);
-  const rawYesterdayOpps = useMemo(() => getSharedDataset('yesterday'), [refreshKey]);
-
+  // Central shared datasets for Today, Yesterday, and Last Week
+  const { todayOpps: rawTodayOpps, yesterdayOpps: rawYesterdayOpps, lastweekOpps: rawLastweekOpps } = useSharedDatasets();
 
   // Filter datasets using GlobalFilterBar state
   const todayOpps = useMemo(() => filterOpportunities(rawTodayOpps, filters), [rawTodayOpps, filters]);
   const yesterdayOpps = useMemo(() => filterOpportunities(rawYesterdayOpps, filters), [rawYesterdayOpps, filters]);
+  const lastweekOpps = useMemo(() => filterOpportunities(rawLastweekOpps, filters), [rawLastweekOpps, filters]);
 
-  // Calculated KPI Totals
+  // Total ACVs
   const totalTodayAcv = useMemo(() => todayOpps.reduce((s, o) => s + o.acv_amount, 0), [todayOpps]);
   const totalYesterdayAcv = useMemo(() => yesterdayOpps.reduce((s, o) => s + o.acv_amount, 0), [yesterdayOpps]);
+  const totalLastweekAcv = useMemo(() => lastweekOpps.reduce((s, o) => s + o.acv_amount, 0), [lastweekOpps]);
   const netAcvChange = totalTodayAcv - totalYesterdayAcv;
   const countChange = todayOpps.length - yesterdayOpps.length;
 
-  // Category Totals Today & Yesterday
+  // Closed ACVs
   const closedToday = useMemo(() => todayOpps.filter(o => o.forecast_category === 'Closed'), [todayOpps]);
   const closedYesterday = useMemo(() => yesterdayOpps.filter(o => o.forecast_category === 'Closed'), [yesterdayOpps]);
-  const closedAcv = closedToday.reduce((s, o) => s + o.acv_amount, 0);
-  const closedDelta = closedAcv - closedYesterday.reduce((s, o) => s + o.acv_amount, 0);
+  const closedLastweek = useMemo(() => lastweekOpps.filter(o => o.forecast_category === 'Closed'), [lastweekOpps]);
+  const closedAcvToday = closedToday.reduce((s, o) => s + o.acv_amount, 0);
+  const closedAcvYesterday = closedYesterday.reduce((s, o) => s + o.acv_amount, 0);
+  const closedAcvLastweek = closedLastweek.reduce((s, o) => s + o.acv_amount, 0);
 
+  // Commit ACVs
   const commitToday = useMemo(() => todayOpps.filter(o => o.forecast_category === 'Commit'), [todayOpps]);
   const commitYesterday = useMemo(() => yesterdayOpps.filter(o => o.forecast_category === 'Commit'), [yesterdayOpps]);
-  const commitAcv = commitToday.reduce((s, o) => s + o.acv_amount, 0);
-  const commitDelta = commitAcv - commitYesterday.reduce((s, o) => s + o.acv_amount, 0);
+  const commitLastweek = useMemo(() => lastweekOpps.filter(o => o.forecast_category === 'Commit'), [lastweekOpps]);
+  const commitAcvToday = commitToday.reduce((s, o) => s + o.acv_amount, 0);
+  const commitAcvYesterday = commitYesterday.reduce((s, o) => s + o.acv_amount, 0);
+  const commitAcvLastweek = commitLastweek.reduce((s, o) => s + o.acv_amount, 0);
 
+  // Best Case ACVs
   const bestCaseToday = useMemo(() => todayOpps.filter(o => o.forecast_category === 'Best Case'), [todayOpps]);
   const bestCaseYesterday = useMemo(() => yesterdayOpps.filter(o => o.forecast_category === 'Best Case'), [yesterdayOpps]);
-  const bestCaseAcv = bestCaseToday.reduce((s, o) => s + o.acv_amount, 0);
-  const bestCaseDelta = bestCaseAcv - bestCaseYesterday.reduce((s, o) => s + o.acv_amount, 0);
+  const bestCaseLastweek = useMemo(() => lastweekOpps.filter(o => o.forecast_category === 'Best Case'), [lastweekOpps]);
+  const bestCaseAcvToday = bestCaseToday.reduce((s, o) => s + o.acv_amount, 0);
+  const bestCaseAcvYesterday = bestCaseYesterday.reduce((s, o) => s + o.acv_amount, 0);
+  const bestCaseAcvLastweek = bestCaseLastweek.reduce((s, o) => s + o.acv_amount, 0);
 
+  // Pipeline ACVs
   const pipelineToday = useMemo(() => todayOpps.filter(o => o.forecast_category === 'Pipeline'), [todayOpps]);
   const pipelineYesterday = useMemo(() => yesterdayOpps.filter(o => o.forecast_category === 'Pipeline'), [yesterdayOpps]);
-  const pipelineAcv = pipelineToday.reduce((s, o) => s + o.acv_amount, 0);
-  const pipelineDelta = pipelineAcv - pipelineYesterday.reduce((s, o) => s + o.acv_amount, 0);
+  const pipelineLastweek = useMemo(() => lastweekOpps.filter(o => o.forecast_category === 'Pipeline'), [lastweekOpps]);
+  const pipelineAcvToday = pipelineToday.reduce((s, o) => s + o.acv_amount, 0);
+  const pipelineAcvYesterday = pipelineYesterday.reduce((s, o) => s + o.acv_amount, 0);
+  const pipelineAcvLastweek = pipelineLastweek.reduce((s, o) => s + o.acv_amount, 0);
 
-  // Q4 2026 Commit Delta calculation
+  // Q4 Commit Delta
   const q4CommitToday = todayOpps.filter(o => (o.fiscal_period === 'Q4 2026' || o.expiry_quarter.includes('Q4')) && o.forecast_category === 'Commit');
   const q4CommitYesterday = yesterdayOpps.filter(o => (o.fiscal_period === 'Q4 2026' || o.expiry_quarter.includes('Q4')) && o.forecast_category === 'Commit');
   const q4CommitAcvToday = q4CommitToday.reduce((s, o) => s + o.acv_amount, 0);
@@ -75,20 +86,20 @@ export const OverviewPage: React.FC = () => {
     const s1 = `Total active ACV pipeline stands at ${formatCurrencyM(totalTodayAcv)} across ${todayOpps.length.toLocaleString()} contracts, showing a net change of ${netAcvChange >= 0 ? '+' : ''}${formatCurrencyM(netAcvChange)} (${countChange >= 0 ? '+' : ''}${countChange} deals) vs yesterday.`;
     
     const s2 = q4CommitDelta < 0
-      ? `Commit in Q4 dropped ${formatCurrencyM(Math.abs(q4CommitDelta))} vs yesterday as deals progressed into Closed status (${formatCurrencyM(closedAcv)} total).`
-      : `Commit ACV currently stands at ${formatCurrencyM(commitAcv)} (${commitToday.length} deals), reflecting a change of ${commitDelta >= 0 ? '+' : ''}${formatCurrencyM(commitDelta)} since yesterday.`;
+      ? `Commit in Q4 dropped ${formatCurrencyM(Math.abs(q4CommitDelta))} vs yesterday as deals progressed into Closed status (${formatCurrencyM(closedAcvToday)} total).`
+      : `Commit ACV currently stands at ${formatCurrencyM(commitAcvToday)} (${commitToday.length} deals), reflecting a change of ${commitAcvToday - commitAcvYesterday >= 0 ? '+' : ''}${formatCurrencyM(commitAcvToday - commitAcvYesterday)} since yesterday.`;
 
-    const s3 = `Closed revenue has reached ${formatCurrencyM(closedAcv)} (${closedToday.length} deals), while Best Case and Pipeline hold ${formatCurrencyM(bestCaseAcv)} and ${formatCurrencyM(pipelineAcv)} respectively.`;
+    const s3 = `Closed revenue has reached ${formatCurrencyM(closedAcvToday)} (${closedToday.length} deals), while Best Case and Pipeline hold ${formatCurrencyM(bestCaseAcvToday)} and ${formatCurrencyM(pipelineAcvToday)} respectively.`;
     
     const s4 = `A total of ${pendingOpps.length} opportunities valued at ${formatCurrencyM(pendingAcv)} are currently in Pending-Approval status awaiting sign-off.`;
 
     return [s1, s2, s3, s4];
-  }, [totalTodayAcv, todayOpps.length, netAcvChange, countChange, q4CommitDelta, closedAcv, commitAcv, commitToday.length, commitDelta, closedToday.length, bestCaseAcv, pipelineAcv, pendingOpps.length, pendingAcv]);
+  }, [totalTodayAcv, todayOpps.length, netAcvChange, countChange, q4CommitDelta, closedAcvToday, commitAcvToday, commitToday.length, commitAcvYesterday, closedToday.length, bestCaseAcvToday, pipelineAcvToday, pendingOpps.length, pendingAcv]);
 
   // Tab Link Cards metadata
   const tabLinks = [
     {
-      title: 'Expiry Heatmap',
+      title: 'Expiry',
       path: '/expiry',
       icon: Calendar,
       accent: 'from-blue-600 to-indigo-600',
@@ -128,14 +139,14 @@ export const OverviewPage: React.FC = () => {
       metricVal: 'Middle East & NA',
     },
     {
-      title: 'Q4 FY26',
-      path: '/q4-fy26',
-      icon: Sparkles,
+      title: 'Delayed Renewals',
+      path: '/delayed-renewals',
+      icon: Clock,
       accent: 'from-amber-500 to-orange-600',
-      badge: 'Quarter Focus',
-      description: 'Target quarter performance tracking ($41.82M base), 4 category cards, and 2027 slippage analysis.',
-      metricLabel: 'Q4 Base ACV',
-      metricVal: formatCurrencyM(todayOpps.filter(o => o.fiscal_period === 'Q4 2026' || o.expiry_quarter.includes('Q4')).reduce((s, o) => s + o.acv_amount, 0)),
+      badge: 'Slippage Analysis',
+      description: 'Contract renewals experiencing timeline delays, close date extensions, or quarter slippage into 2027.',
+      metricLabel: 'Delayed Deals ACV',
+      metricVal: formatCurrencyM(todayOpps.filter(o => o.is_slipped_to_2027 || o.close_date.includes('2027')).reduce((s, o) => s + o.acv_amount, 0)),
     },
     {
       title: 'Data Hub',
@@ -186,93 +197,68 @@ export const OverviewPage: React.FC = () => {
         dataset={rawTodayOpps}
       />
 
-      {/* 2. KPI Cards (Total ACV, Closed, Commit, Best Case, Pipeline, Change vs Yesterday) */}
+      {/* 2. KPI Cards Grid with Dual Comparison (Today vs Yesterday AND Today vs Last Week) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
         {/* Total ACV Card */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-2 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-            <span>Total ACV</span>
-            <span className="font-mono text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-600">{todayOpps.length} deals</span>
-          </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight">
-            {formatCurrencyM(totalTodayAcv)}
-          </div>
-          <div className="flex items-center gap-1 text-xs pt-1 border-t border-slate-100">
-            <span className="text-slate-400 font-bold">vs Yesterday:</span>
-            <span className={`font-mono font-extrabold ${netAcvChange >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-              {netAcvChange >= 0 ? '+' : ''}{formatCurrencyM(netAcvChange)} ({countChange >= 0 ? '+' : ''}{countChange})
-            </span>
-          </div>
-        </div>
+        <DualComparisonKpiCard
+          title="Total ACV"
+          count={todayOpps.length}
+          currentAcv={totalTodayAcv}
+          yesterdayAcv={totalYesterdayAcv}
+          yesterdayCount={yesterdayOpps.length}
+          lastweekAcv={totalLastweekAcv}
+          lastweekCount={lastweekOpps.length}
+          variant="default"
+        />
 
         {/* Closed Card */}
-        <div className="bg-white p-5 rounded-3xl border border-emerald-200 shadow-sm space-y-2 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-emerald-800">
-            <span>Closed ACV</span>
-            <span className="font-mono text-[10px] bg-emerald-50 px-2 py-0.5 rounded text-emerald-700 font-bold">{closedToday.length} deals</span>
-          </div>
-          <div className="text-2xl font-black text-emerald-700 tracking-tight">
-            {formatCurrencyM(closedAcv)}
-          </div>
-          <div className="flex items-center gap-1 text-xs pt-1 border-t border-slate-100">
-            <span className="text-slate-400 font-bold">vs Yesterday:</span>
-            <span className={`font-mono font-extrabold ${closedDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-              {closedDelta >= 0 ? '+' : ''}{formatCurrencyM(closedDelta)}
-            </span>
-          </div>
-        </div>
+        <DualComparisonKpiCard
+          title="Closed ACV"
+          count={closedToday.length}
+          currentAcv={closedAcvToday}
+          yesterdayAcv={closedAcvYesterday}
+          yesterdayCount={closedYesterday.length}
+          lastweekAcv={closedAcvLastweek}
+          lastweekCount={closedLastweek.length}
+          variant="closed"
+        />
 
         {/* Commit Card */}
-        <div className="bg-white p-5 rounded-3xl border border-blue-200 shadow-sm space-y-2 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-blue-800">
-            <span>Commit ACV</span>
-            <span className="font-mono text-[10px] bg-blue-50 px-2 py-0.5 rounded text-blue-700 font-bold">{commitToday.length} deals</span>
-          </div>
-          <div className="text-2xl font-black text-blue-700 tracking-tight">
-            {formatCurrencyM(commitAcv)}
-          </div>
-          <div className="flex items-center gap-1 text-xs pt-1 border-t border-slate-100">
-            <span className="text-slate-400 font-bold">vs Yesterday:</span>
-            <span className={`font-mono font-extrabold ${commitDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-              {commitDelta >= 0 ? '+' : ''}{formatCurrencyM(commitDelta)}
-            </span>
-          </div>
-        </div>
+        <DualComparisonKpiCard
+          title="Commit ACV"
+          count={commitToday.length}
+          currentAcv={commitAcvToday}
+          yesterdayAcv={commitAcvYesterday}
+          yesterdayCount={commitYesterday.length}
+          lastweekAcv={commitAcvLastweek}
+          lastweekCount={commitLastweek.length}
+          variant="commit"
+        />
 
         {/* Best Case Card */}
-        <div className="bg-white p-5 rounded-3xl border border-purple-200 shadow-sm space-y-2 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-purple-800">
-            <span>Best Case ACV</span>
-            <span className="font-mono text-[10px] bg-purple-50 px-2 py-0.5 rounded text-purple-700 font-bold">{bestCaseToday.length} deals</span>
-          </div>
-          <div className="text-2xl font-black text-purple-700 tracking-tight">
-            {formatCurrencyM(bestCaseAcv)}
-          </div>
-          <div className="flex items-center gap-1 text-xs pt-1 border-t border-slate-100">
-            <span className="text-slate-400 font-bold">vs Yesterday:</span>
-            <span className={`font-mono font-extrabold ${bestCaseDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-              {bestCaseDelta >= 0 ? '+' : ''}{formatCurrencyM(bestCaseDelta)}
-            </span>
-          </div>
-        </div>
+        <DualComparisonKpiCard
+          title="Best Case ACV"
+          count={bestCaseToday.length}
+          currentAcv={bestCaseAcvToday}
+          yesterdayAcv={bestCaseAcvYesterday}
+          yesterdayCount={bestCaseYesterday.length}
+          lastweekAcv={bestCaseAcvLastweek}
+          lastweekCount={bestCaseLastweek.length}
+          variant="bestcase"
+        />
 
         {/* Pipeline Card */}
-        <div className="bg-white p-5 rounded-3xl border border-amber-200 shadow-sm space-y-2 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-bold text-amber-800">
-            <span>Pipeline ACV</span>
-            <span className="font-mono text-[10px] bg-amber-50 px-2 py-0.5 rounded text-amber-700 font-bold">{pipelineToday.length} deals</span>
-          </div>
-          <div className="text-2xl font-black text-amber-700 tracking-tight">
-            {formatCurrencyM(pipelineAcv)}
-          </div>
-          <div className="flex items-center gap-1 text-xs pt-1 border-t border-slate-100">
-            <span className="text-slate-400 font-bold">vs Yesterday:</span>
-            <span className={`font-mono font-extrabold ${pipelineDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-              {pipelineDelta >= 0 ? '+' : ''}{formatCurrencyM(pipelineDelta)}
-            </span>
-          </div>
-        </div>
+        <DualComparisonKpiCard
+          title="Pipeline ACV"
+          count={pipelineToday.length}
+          currentAcv={pipelineAcvToday}
+          yesterdayAcv={pipelineAcvYesterday}
+          yesterdayCount={pipelineYesterday.length}
+          lastweekAcv={pipelineAcvLastweek}
+          lastweekCount={pipelineLastweek.length}
+          variant="pipeline"
+        />
 
       </div>
 

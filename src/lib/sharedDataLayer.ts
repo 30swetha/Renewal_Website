@@ -57,6 +57,24 @@ export function formatCurrencyM(amount: number): string {
 }
 
 /**
+ * Custom React hook to retrieve Today, Yesterday, and Last Week datasets reactively
+ */
+export function useSharedDatasets() {
+  const refreshKey = useDatasetRefresh();
+
+  const todayOpps = getSharedDataset('2026-10-06');
+  const yesterdayOpps = getSharedDataset('2026-10-05');
+  const lastweekOpps = getSharedDataset('2026-09-29');
+
+  return {
+    todayOpps,
+    yesterdayOpps,
+    lastweekOpps,
+    refreshKey,
+  };
+}
+
+/**
  * Get shared dataset for a given snapshot date (defaults to active today snapshot date)
  */
 export function getSharedDataset(dateStr?: string): SharedOpportunity[] {
@@ -68,6 +86,8 @@ export function getSharedDataset(dateStr?: string): SharedOpportunity[] {
     targetDate = todayDate;
   } else if (targetDate === 'yesterday') {
     targetDate = yesterdayDate;
+  } else if (targetDate === 'lastweek') {
+    targetDate = '2026-09-29';
   }
 
   let rawOpps = db.getOpportunitiesForDate(targetDate);

@@ -6,6 +6,7 @@ import ExpiryPage from './pages/Expiry';
 import ApprovalsPage from './pages/Approvals';
 import BusinessUnitsPage from './pages/BusinessUnits';
 import RegionsPage from './pages/Regions';
+import DelayedRenewalsPage from './pages/DelayedRenewals';
 import ExplorePage from './pages/Explore';
 import Q4FY26Page from './pages/Q4FY26';
 import { Login } from './pages/Login';
@@ -24,6 +25,7 @@ export function App() {
           <Route path="/approvals" element={<ApprovalsPage />} />
           <Route path="/business-units" element={<BusinessUnitsPage />} />
           <Route path="/regions" element={<RegionsPage />} />
+          <Route path="/delayed-renewals" element={<DelayedRenewalsPage />} />
           <Route path="/q4-fy26" element={<Q4FY26Page />} />
           <Route path="/renewals-hub" element={<RenewalsSummaryDashboard />} />
           <Route path="/explore" element={<ExplorePage />} />
