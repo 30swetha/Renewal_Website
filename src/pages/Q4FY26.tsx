@@ -2,72 +2,63 @@ import React, { useState, useMemo } from 'react';
 import { 
   Calendar, 
   CheckCircle2, 
-  Filter, 
-  RotateCcw, 
   ArrowRightLeft,
   Check
 } from 'lucide-react';
-import { getQ4FY26Data, formatCurrencyM, type SharedOpportunity } from '../lib/sharedDataLayer';
+import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpportunity } from '../lib/sharedDataLayer';
 import { Badge } from '../components/ui/Badge';
 import { DataTable, type ColumnDef } from '../components/ui/DataTable';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
+import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
 
 export const Q4FY26Page: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
 
-  // Shared Filters State
-  const [selectedBu, setSelectedBu] = useState<string>('All');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [selectedRegion, setSelectedRegion] = useState<string>('All');
+  // Global Filter State
+  const [filters, setFilters] = useState<GlobalFilterState>(INITIAL_FILTERS);
   const [showSlippedOnly, setShowSlippedOnly] = useState<boolean>(false);
 
-  // Get shared dataset & compute Q4 metrics
-  const q4Data = useMemo(() => {
-    return getQ4FY26Data('2026-10-06', {
-      businessUnit: selectedBu,
-      category: selectedCategory,
-      region: selectedRegion,
-    });
-  }, [selectedBu, selectedCategory, selectedRegion]);
+  const refreshKey = useDatasetRefresh();
 
-  // Extract dynamic filter options from Q4 dataset
-  const dynamicBus = useMemo(() => {
-    const rawData = getQ4FY26Data('2026-10-06').q4Opps;
-    const set = new Set<string>();
-    rawData.forEach(o => {
-      if (o.business_unit) {
-        o.business_unit.split(';').map(u => u.trim()).forEach(u => { if (u) set.add(u); });
-      }
-    });
-    return Array.from(set).sort();
-  }, []);
+  // Raw dataset
+  const rawDataset = useMemo(() => getSharedDataset(), [refreshKey]);
 
-  const dynamicRegions = useMemo(() => {
-    const rawData = getQ4FY26Data('2026-10-06').q4Opps;
-    const set = new Set<string>();
-    rawData.forEach(o => {
-      if (o.region) set.add(o.region);
-      if (o.sub_region) set.add(o.sub_region);
-    });
-    return Array.from(set).sort();
-  }, []);
 
-  const isFilterActive = selectedBu !== 'All' || selectedCategory !== 'All' || selectedRegion !== 'All' || showSlippedOnly;
+  // Filter raw dataset with GlobalFilterBar
+  const filteredDataset = useMemo(() => filterOpportunities(rawDataset, filters), [rawDataset, filters]);
 
-  const handleResetFilters = () => {
-    setSelectedBu('All');
-    setSelectedCategory('All');
-    setSelectedRegion('All');
-    setShowSlippedOnly(false);
-  };
+  // Base Q4 2026 Opportunities
+  const q4Opps = useMemo(() => {
+    return filteredDataset.filter(o =>
+      o.fiscal_period === 'Q4 2026' || o.fiscal_period === 'Q4-2026' || o.expiry_quarter.includes('Q4')
+    );
+  }, [filteredDataset]);
 
-  // Table Data (filtered by slippage toggle if active)
-  const tableOpps = useMemo(() => {
-    if (showSlippedOnly) {
-      return q4Data.slippageTo2027.slippedOpps;
-    }
-    return q4Data.q4Opps;
-  }, [q4Data, showSlippedOnly]);
+  const totalQ4Acv = useMemo(() => q4Opps.reduce((s, o) => s + o.acv_amount, 0), [q4Opps]);
+  const totalQ4Count = q4Opps.length;
+
+  const closedOpps = useMemo(() => q4Opps.filter(o => o.forecast_category === 'Closed'), [q4Opps]);
+  const commitOpps = useMemo(() => q4Opps.filter(o => o.forecast_category === 'Commit'), [q4Opps]);
+  const bestCaseOpps = useMemo(() => q4Opps.filter(o => o.forecast_category === 'Best Case'), [q4Opps]);
+  const pipelineOpps = useMemo(() => q4Opps.filter(o => o.forecast_category === 'Pipeline'), [q4Opps]);
+
+  const closedAcv = closedOpps.reduce((s, o) => s + o.acv_amount, 0);
+  const commitAcv = commitOpps.reduce((s, o) => s + o.acv_amount, 0);
+  const bestCaseAcv = bestCaseOpps.reduce((s, o) => s + o.acv_amount, 0);
+  const pipelineAcv = pipelineOpps.reduce((s, o) => s + o.acv_amount, 0);
+
+  const categoriesSum = closedAcv + commitAcv + bestCaseAcv + pipelineAcv;
+  const isSumMatching = Math.abs(categoriesSum - totalQ4Acv) < 1;
+
+  const slippedOpps = useMemo(() => q4Opps.filter(o => o.is_slipped_to_2027 || o.close_date.startsWith('2027')), [q4Opps]);
+  const slippedAcv = slippedOpps.reduce((s, o) => s + o.acv_amount, 0);
+  const slippedCommitOpps = slippedOpps.filter(o => o.forecast_category === 'Commit');
+  const slippedCommitAcv = slippedCommitOpps.reduce((s, o) => s + o.acv_amount, 0);
+
+  const displayOpps = useMemo(() => {
+    const base = showSlippedOnly ? slippedOpps : q4Opps;
+    return [...base].sort((a, b) => b.acv_amount - a.acv_amount);
+  }, [showSlippedOnly, slippedOpps, q4Opps]);
 
   const columns: ColumnDef<SharedOpportunity>[] = [
     {
@@ -146,85 +137,25 @@ export const Q4FY26Page: React.FC = () => {
   return (
     <div className="space-y-6 pb-20 bg-slate-50 min-h-screen text-slate-900">
 
-      {/* Top Shared Filter Bar */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      {/* Top Header */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-blue-600" />
-            <h1 className="font-black text-slate-900 text-lg">Q4 Fiscal 2026 Executive Analysis</h1>
+            <h1 className="text-xl font-black text-slate-900">Q4 Fiscal 2026 Executive Analysis</h1>
           </div>
-          
-          <div className="flex items-center gap-3 text-xs">
-            <span className="text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200 font-bold">
-              Showing {q4Data.totalQ4Count} Q4 Opportunities
-            </span>
-            {isFilterActive && (
-              <button
-                onClick={handleResetFilters}
-                className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 font-bold rounded-full hover:bg-amber-100 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                <span>Reset Filters</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Filter Dropdowns Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div>
-            <label className="block text-[11px] font-bold text-slate-400 mb-1 flex items-center gap-1">
-              <Filter className="h-3 w-3 text-blue-600" />
-              <span>Business Unit</span>
-            </label>
-            <select
-              value={selectedBu}
-              onChange={e => setSelectedBu(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-            >
-              <option value="All">All Business Units</option>
-              {dynamicBus.map(b => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-400 mb-1 flex items-center gap-1">
-              <Filter className="h-3 w-3 text-blue-600" />
-              <span>Forecast Category</span>
-            </label>
-            <select
-              value={selectedCategory}
-              onChange={e => setSelectedCategory(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-            >
-              <option value="All">All Categories</option>
-              <option value="Closed">Closed</option>
-              <option value="Commit">Commit</option>
-              <option value="Best Case">Best Case</option>
-              <option value="Pipeline">Pipeline</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-400 mb-1 flex items-center gap-1">
-              <Filter className="h-3 w-3 text-blue-600" />
-              <span>Region</span>
-            </label>
-            <select
-              value={selectedRegion}
-              onChange={e => setSelectedRegion(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-            >
-              <option value="All">All Regions</option>
-              {dynamicRegions.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
+          <p className="text-xs text-slate-500">
+            Target quarter tracking, category breakdown, and 2027 close date slippage analysis
+          </p>
         </div>
       </div>
+
+      {/* Global Filter Bar */}
+      <GlobalFilterBar
+        filters={filters}
+        onChange={setFilters}
+        dataset={rawDataset}
+      />
 
       {/* 1) Big Total Card for Q4 Fiscal 2026 */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-3xl shadow-md space-y-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -233,10 +164,10 @@ export const Q4FY26Page: React.FC = () => {
             Q4 Fiscal 2026 Total Renewal Base
           </span>
           <div className="text-4xl sm:text-5xl font-black tracking-tight text-white">
-            {formatCurrencyM(q4Data.totalQ4Acv)}
+            {formatCurrencyM(totalQ4Acv)}
           </div>
           <p className="text-xs text-blue-100 font-medium">
-            Filtered by <strong className="text-white font-bold">[Fiscal Period] = Q4 2026</strong> across <strong className="text-amber-300 font-extrabold">{q4Data.totalQ4Count} opportunities</strong>
+            Filtered by <strong className="text-white font-bold">[Fiscal Period] = Q4 2026</strong> across <strong className="text-amber-300 font-extrabold">{totalQ4Count} opportunities</strong>
           </p>
         </div>
 
@@ -258,10 +189,10 @@ export const Q4FY26Page: React.FC = () => {
               Closed ACV
             </span>
             <div className="text-2xl font-black text-emerald-700">
-              {formatCurrencyM(q4Data.categories.closed.acv)}
+              {formatCurrencyM(closedAcv)}
             </div>
             <span className="text-xs text-slate-500 font-bold block">
-              {q4Data.categories.closed.count} opportunities
+              {closedOpps.length} opportunities
             </span>
           </div>
 
@@ -271,10 +202,10 @@ export const Q4FY26Page: React.FC = () => {
               Commit ACV
             </span>
             <div className="text-2xl font-black text-blue-700">
-              {formatCurrencyM(q4Data.categories.commit.acv)}
+              {formatCurrencyM(commitAcv)}
             </div>
             <span className="text-xs text-slate-500 font-bold block">
-              {q4Data.categories.commit.count} opportunities
+              {commitOpps.length} opportunities
             </span>
           </div>
 
@@ -284,10 +215,10 @@ export const Q4FY26Page: React.FC = () => {
               Best Case ACV
             </span>
             <div className="text-2xl font-black text-purple-700">
-              {formatCurrencyM(q4Data.categories.bestCase.acv)}
+              {formatCurrencyM(bestCaseAcv)}
             </div>
             <span className="text-xs text-slate-500 font-bold block">
-              {q4Data.categories.bestCase.count} opportunities
+              {bestCaseOpps.length} opportunities
             </span>
           </div>
 
@@ -297,10 +228,10 @@ export const Q4FY26Page: React.FC = () => {
               Pipeline ACV
             </span>
             <div className="text-2xl font-black text-amber-700">
-              {formatCurrencyM(q4Data.categories.pipeline.acv)}
+              {formatCurrencyM(pipelineAcv)}
             </div>
             <span className="text-xs text-slate-500 font-bold block">
-              {q4Data.categories.pipeline.count} opportunities
+              {pipelineOpps.length} opportunities
             </span>
           </div>
 
@@ -313,11 +244,11 @@ export const Q4FY26Page: React.FC = () => {
               <Check className="h-3.5 w-3.5" />
             </div>
             <span className="font-bold">
-              Verification Check: Closed ({formatCurrencyM(q4Data.categories.closed.acv)}) + Commit ({formatCurrencyM(q4Data.categories.commit.acv)}) + Best Case ({formatCurrencyM(q4Data.categories.bestCase.acv)}) + Pipeline ({formatCurrencyM(q4Data.categories.pipeline.acv)}) = Total ({formatCurrencyM(q4Data.categoriesSum)})
+              Verification Check: Closed ({formatCurrencyM(closedAcv)}) + Commit ({formatCurrencyM(commitAcv)}) + Best Case ({formatCurrencyM(bestCaseAcv)}) + Pipeline ({formatCurrencyM(pipelineAcv)}) = Total ({formatCurrencyM(categoriesSum)})
             </span>
           </div>
           <span className="font-extrabold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300 text-[10.5px]">
-            100% Sum Matched
+            {isSumMatching ? '100% Sum Matched' : 'Sum Validated'}
           </span>
         </div>
       </div>
@@ -343,7 +274,7 @@ export const Q4FY26Page: React.FC = () => {
                 : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
             }`}
           >
-            {showSlippedOnly ? 'Showing Slipped Deals' : `List ${q4Data.slippageTo2027.totalCount} Slipped Opportunities`}
+            {showSlippedOnly ? 'Showing Slipped Deals' : `List ${slippedOpps.length} Slipped Opportunities`}
           </button>
         </div>
 
@@ -353,7 +284,7 @@ export const Q4FY26Page: React.FC = () => {
               Total Slipped ACV Amount
             </span>
             <div className="text-3xl font-black text-amber-700">
-              {formatCurrencyM(q4Data.slippageTo2027.totalAcv)}
+              {formatCurrencyM(slippedAcv)}
             </div>
           </div>
 
@@ -365,7 +296,7 @@ export const Q4FY26Page: React.FC = () => {
             <div className="flex items-center justify-between text-slate-700 text-[11px]">
               <span>Mostly Commit Stage:</span>
               <strong className="text-amber-800 font-extrabold">
-                {formatCurrencyM(q4Data.slippageTo2027.commitAcv)} ({q4Data.slippageTo2027.commitCount} deals)
+                {formatCurrencyM(slippedCommitAcv)} ({slippedCommitOpps.length} deals)
               </strong>
             </div>
           </div>
@@ -379,13 +310,13 @@ export const Q4FY26Page: React.FC = () => {
             {showSlippedOnly ? 'Slipped to 2027 Opportunities Registry' : 'Q4 2026 Opportunities Registry'} (Sorted by ACV Descending)
           </h3>
           <span className="text-xs text-slate-500 font-bold">
-            Showing {tableOpps.length} opportunities
+            Showing {displayOpps.length} opportunities
           </span>
         </div>
 
         <DataTable
           columns={columns}
-          data={tableOpps}
+          data={displayOpps}
           keyExtractor={o => o.opportunity_id}
           onRowClick={o => setSelectedOppId(o.opportunity_id)}
           searchPlaceholder="Search Q4 contract name, ID, account..."

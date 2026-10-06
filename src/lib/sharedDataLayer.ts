@@ -1,6 +1,4 @@
-// Shared Data Layer for Mobileum RenewIQ Platform
-// Single parsed dataset & helper functions enforcing identical calculations across all tabs.
-
+import { useState, useEffect } from 'react';
 import { db, type OpportunitySnapshotRecord } from './database';
 import { seedStarterSnapshots } from './seedScript';
 
@@ -14,6 +12,41 @@ export interface SharedOpportunity extends OpportunitySnapshotRecord {
 }
 
 /**
+ * Custom React hook to listen for dataset-updated events and force component re-renders
+ */
+export function useDatasetRefresh(): number {
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setRefreshKey(prev => prev + 1);
+    };
+
+    window.addEventListener('dataset-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('dataset-updated', handleUpdate);
+    };
+  }, []);
+
+  return refreshKey;
+}
+
+/**
+ * Gets the active today date (latest snapshot date) and yesterday date (baseline snapshot date)
+ */
+export function getLatestSnapshotDates(): { todayDate: string; yesterdayDate: string } {
+  seedStarterSnapshots();
+  const snaps = db.getSnapshots();
+  if (snaps.length === 0) {
+    return { todayDate: '2026-10-06', yesterdayDate: '2026-10-05' };
+  }
+  const sorted = snaps.map(s => s.snapshot_date).sort().reverse();
+  const todayDate = sorted[0] || '2026-10-06';
+  const yesterdayDate = sorted.length > 1 ? sorted[1] : '2026-10-05';
+  return { todayDate, yesterdayDate };
+}
+
+/**
  * Format currency strictly as USD Millions with 2 decimals (e.g. $41.82M)
  */
 export function formatCurrencyM(amount: number): string {
@@ -24,13 +57,22 @@ export function formatCurrencyM(amount: number): string {
 }
 
 /**
- * Get shared dataset for a given snapshot date (defaults to 2026-10-06)
+ * Get shared dataset for a given snapshot date (defaults to active today snapshot date)
  */
-export function getSharedDataset(dateStr: string = '2026-10-06'): SharedOpportunity[] {
+export function getSharedDataset(dateStr?: string): SharedOpportunity[] {
   seedStarterSnapshots();
-  let rawOpps = db.getOpportunitiesForDate(dateStr);
+  const { todayDate, yesterdayDate } = getLatestSnapshotDates();
+
+  let targetDate = dateStr;
+  if (!targetDate) {
+    targetDate = todayDate;
+  } else if (targetDate === 'yesterday') {
+    targetDate = yesterdayDate;
+  }
+
+  let rawOpps = db.getOpportunitiesForDate(targetDate);
   if (rawOpps.length === 0) {
-    rawOpps = db.getOpportunitiesForDate('2026-10-05');
+    rawOpps = db.getOpportunitiesForDate(todayDate);
   }
 
   return rawOpps.map(o => {
@@ -62,6 +104,7 @@ export function getSharedDataset(dateStr: string = '2026-10-06'): SharedOpportun
     };
   });
 }
+
 
 /**
  * Filter Q4 FY26 opportunities and compute summary metrics

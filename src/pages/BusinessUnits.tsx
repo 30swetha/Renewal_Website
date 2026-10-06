@@ -1,178 +1,254 @@
-import React, { useState } from 'react';
-import { Layers } from 'lucide-react';
-import { SegmentedControl } from '../components/ui/SegmentedControl';
+import React, { useState, useMemo } from 'react';
+import { 
+  Layers, 
+  BarChart3, 
+  ChevronRight,
+  CheckCircle2
+} from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
+import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpportunity } from '../lib/sharedDataLayer';
+import { Badge } from '../components/ui/Badge';
+import { DataTable, type ColumnDef } from '../components/ui/DataTable';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
-import { db } from '../lib/database';
-import { parseBusinessUnit } from '../lib/ingestService';
+
+import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
 
 export const BusinessUnitsPage: React.FC = () => {
-  const [buMode, setBuMode] = useState<'combined' | 'split'>('combined');
-  const [selectedBu, setSelectedBu] = useState<string | null>(null);
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
 
-  const todayOpps = db.getOpportunitiesForDate('2026-10-06');
+  // Global Filter State
+  const [filters, setFilters] = useState<GlobalFilterState>(INITIAL_FILTERS);
 
-  // Compute BU breakdown based on toggle mode
-  const buMap = new Map<string, {
-    buName: string;
-    totalAcv: number;
-    count: number;
-    approved: number;
-    approved2nd: number;
-    pending: number;
-    blank: number;
-    rejected: number;
-    opps: typeof todayOpps;
-  }>();
+  const refreshKey = useDatasetRefresh();
 
-  todayOpps.forEach(opp => {
-    const units = buMode === 'split' 
-      ? parseBusinessUnit(opp.business_unit).units 
-      : [opp.business_unit];
+  // Load shared dataset
+  const dataset = useMemo(() => getSharedDataset(), [refreshKey]);
 
-    units.forEach(buName => {
-      const existing = buMap.get(buName) || {
-        buName,
-        totalAcv: 0,
-        count: 0,
-        approved: 0,
-        approved2nd: 0,
-        pending: 0,
-        blank: 0,
-        rejected: 0,
-        opps: [],
-      };
 
-      existing.totalAcv += opp.acv_amount;
-      existing.count += 1;
-      existing.opps.push(opp);
+  // Compute BU Breakdown for Bar Graph in the Middle
+  const buBreakdown = useMemo(() => {
+    const map = new Map<string, { buName: string; totalAcv: number; count: number }>();
 
-      if (opp.approval_status === 'Approved') existing.approved += opp.acv_amount;
-      else if (opp.approval_status === 'Approved-2nd') existing.approved2nd += opp.acv_amount;
-      else if (opp.approval_status.includes('Pending')) existing.pending += opp.acv_amount;
-      else if (opp.approval_status === 'Rejected') existing.rejected += opp.acv_amount;
-      else existing.blank += opp.acv_amount;
-
-      buMap.set(buName, existing);
+    dataset.forEach(opp => {
+      const buUnits = opp.business_unit ? opp.business_unit.split(';').map(u => u.trim()) : ['Unassigned'];
+      buUnits.forEach(buName => {
+        const existing = map.get(buName) || { buName, totalAcv: 0, count: 0 };
+        existing.totalAcv += opp.acv_amount;
+        existing.count += 1;
+        map.set(buName, existing);
+      });
     });
-  });
 
-  const buList = Array.from(buMap.values()).sort((a, b) => b.totalAcv - a.totalAcv);
-  const selectedBuData = selectedBu ? buMap.get(selectedBu) : null;
+    return Array.from(map.values()).sort((a, b) => b.totalAcv - a.totalAcv);
+  }, [dataset]);
+
+  // Chart formatted data
+  const buChartData = useMemo(() => {
+    return buBreakdown.map(b => ({
+      name: b.buName,
+      amount: Number((b.totalAcv / 1e6).toFixed(2)),
+      count: b.count,
+    }));
+  }, [buBreakdown]);
+
+  // Filter Table Data with Global Filter Bar
+  const filteredOpps = useMemo(() => {
+    return filterOpportunities(dataset, filters).sort((a, b) => b.acv_amount - a.acv_amount);
+  }, [dataset, filters]);
+
+  // Small Total Line metrics
+  const totalFilteredAcv = useMemo(() => {
+    return filteredOpps.reduce((s, o) => s + o.acv_amount, 0);
+  }, [filteredOpps]);
+
+  // Table Columns
+  const columns: ColumnDef<SharedOpportunity>[] = [
+    {
+      key: 'opportunity_name',
+      header: 'Opportunity Name',
+      accessor: o => o.opportunity_name,
+      render: o => (
+        <div>
+          <span className="font-bold text-slate-900">{o.opportunity_name}</span>
+          <span className="text-[10px] text-slate-400 block font-mono">{o.opportunity_id} &bull; {o.account_name}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'region',
+      header: 'Region',
+      accessor: o => o.region,
+      render: o => <span className="font-bold text-slate-700">{o.region}</span>,
+    },
+    {
+      key: 'acv_amount',
+      header: 'Forecast ACV Amount',
+      accessor: o => o.acv_amount,
+      align: 'right',
+      render: o => <span className="font-black text-slate-900 text-sm">{formatCurrencyM(o.acv_amount)}</span>,
+    },
+    {
+      key: 'forecast_category',
+      header: 'Forecast Category',
+      accessor: o => o.forecast_category,
+      render: o => (
+        <Badge variant={
+          o.forecast_category === 'Closed' ? 'closed' :
+          o.forecast_category === 'Commit' ? 'commit' :
+          o.forecast_category === 'Best Case' ? 'bestcase' : 'pipeline'
+        }>
+          {o.forecast_category}
+        </Badge>
+      ),
+    },
+    {
+      key: 'approval_status',
+      header: 'Approval Status',
+      accessor: o => o.approval_status,
+      render: o => (
+        <Badge variant={
+          o.approval_status.includes('Approved') ? 'approved' :
+          o.approval_status.includes('Pending') ? 'pending' : 'rejected'
+        }>
+          {o.approval_status}
+        </Badge>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6 pb-16 bg-slate-50 min-h-screen text-slate-900">
+    <div className="space-y-6 pb-20 bg-slate-50 min-h-screen text-slate-900">
       
-      {/* Top Header & Toggle */}
+      {/* Top Header */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
             <Layers className="h-5 w-5 text-blue-600" />
-            <span>Business Units Performance & Approval Mix</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Analyzing portfolio ACV and approval clearance stacked per Business Unit
+            <h1 className="text-xl font-black text-slate-900">Business Unit Renewal Portfolio</h1>
+          </div>
+          <p className="text-xs text-slate-500">
+            Total ACV breakdown across product and service business units (Roaming, Signalling, Testing, Enterprise, Mobility)
           </p>
         </div>
 
-        {/* Multi-BU Handling Mode Switcher */}
-        <SegmentedControl
-          options={[
-            { id: 'combined', label: 'Combined Units (As Exported)' },
-            { id: 'split', label: 'Split Multi-BU Deals' },
-          ]}
-          value={buMode}
-          onChange={(val: any) => setBuMode(val)}
-        />
+        {filters.businessUnit !== 'All' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-bold">Active BU Filter:</span>
+            <span className="px-3 py-1 bg-blue-600 text-white font-black text-xs rounded-xl shadow-xs">
+              {filters.businessUnit}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Business Units Stacked Rows Table */}
+      {/* 1) Bar Graph in the Middle showing total ACV by Business Unit (Sorted Descending) */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-        <h3 className="font-extrabold text-slate-900 text-sm">
-          Business Unit Portfolio Stacked Approval Breakdown
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+          <div>
+            <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-blue-600" />
+              <span>Total ACV by Business Unit ($M)</span>
+            </h3>
+            <p className="text-xs text-slate-500">Click any bar or BU card below to list its opportunities</p>
+          </div>
 
-        <div className="space-y-4">
-          {buList.map(item => {
-            const total = item.totalAcv || 1;
-            const approvedPct = (item.approved / total) * 100;
-            const approved2ndPct = (item.approved2nd / total) * 100;
-            const pendingPct = (item.pending / total) * 100;
-            const blankPct = (item.blank / total) * 100;
-            const rejectedPct = (item.rejected / total) * 100;
+          <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+            Sorted Descending
+          </span>
+        </div>
+
+        {/* Recharts Bar Chart */}
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={buChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 'bold', fill: '#475569' }} stroke="#94A3B8" />
+              <YAxis tick={{ fontSize: 11, fill: '#475569' }} stroke="#94A3B8" />
+              <Tooltip formatter={(value: any) => [`$${Number(value).toFixed(2)}M`, 'Total ACV']} />
+              <Bar 
+                dataKey="amount" 
+                radius={[8, 8, 0, 0]}
+                onClick={(data: any) => {
+                  if (data && data.name) {
+                    setFilters(prev => ({ ...prev, businessUnit: prev.businessUnit === data.name ? 'All' : data.name }));
+                  }
+                }}
+                className="cursor-pointer"
+              >
+                {buChartData.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={filters.businessUnit === entry.name ? '#1D4ED8' : '#2563EB'} 
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Interactive BU Selection Cards Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-2">
+          {buBreakdown.map((item) => {
+            const isSelected = filters.businessUnit === item.buName;
 
             return (
               <div
                 key={item.buName}
-                onClick={() => setSelectedBu(item.buName)}
-                className="p-4 bg-slate-50 hover:bg-blue-50/60 rounded-2xl border border-slate-200 cursor-pointer transition-all space-y-2"
+                onClick={() => setFilters(prev => ({ ...prev, businessUnit: isSelected ? 'All' : item.buName }))}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-1 ${
+                  isSelected
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-102'
+                    : 'bg-slate-50 hover:bg-white text-slate-900 border-slate-200 hover:border-blue-400 shadow-2xs'
+                }`}
               >
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-slate-900">{item.buName}</span>
-                    <span className="text-slate-500 font-mono">({item.count} deals)</span>
-                  </div>
-                  <span className="font-black text-slate-900 font-mono">
-                    ${(item.totalAcv / 1e6).toFixed(2)}M
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-black truncate ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                    {item.buName}
                   </span>
+                  <ChevronRight className={`h-3.5 w-3.5 ${isSelected ? 'text-blue-100' : 'text-slate-400'}`} />
                 </div>
-
-                {/* Stacked Progress Bar */}
-                <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden flex">
-                  <div style={{ width: `${approvedPct}%` }} className="bg-emerald-500 h-full" title={`Approved: $${(item.approved / 1e6).toFixed(2)}M`} />
-                  <div style={{ width: `${approved2ndPct}%` }} className="bg-teal-500 h-full" title={`Approved-2nd: $${(item.approved2nd / 1e6).toFixed(2)}M`} />
-                  <div style={{ width: `${pendingPct}%` }} className="bg-amber-500 h-full" title={`Pending: $${(item.pending / 1e6).toFixed(2)}M`} />
-                  <div style={{ width: `${blankPct}%` }} className="bg-slate-400 h-full" title={`Blank: $${(item.blank / 1e6).toFixed(2)}M`} />
-                  <div style={{ width: `${rejectedPct}%` }} className="bg-rose-500 h-full" title={`Rejected: $${(item.rejected / 1e6).toFixed(2)}M`} />
+                <div className={`text-lg font-black ${isSelected ? 'text-white' : 'text-blue-700'}`}>
+                  {formatCurrencyM(item.totalAcv)}
                 </div>
-
-                <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono pt-1">
-                  <span>Approved: <strong>${(item.approved / 1e6).toFixed(2)}M</strong> ({approvedPct.toFixed(1)}%)</span>
-                  <span>Pending: <strong>${(item.pending / 1e6).toFixed(2)}M</strong> ({pendingPct.toFixed(1)}%)</span>
-                </div>
+                <span className={`text-[10px] font-bold ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
+                  {item.count} deals
+                </span>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Selected BU Drawer / Detail List */}
-      {selectedBuData && (
-        <div className="bg-white p-6 rounded-3xl border border-blue-200 shadow-md space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="font-extrabold text-slate-900 text-sm">
-                Opportunities in {selectedBuData.buName} (${(selectedBuData.totalAcv / 1e6).toFixed(2)}M)
-              </h3>
-              <p className="text-xs text-slate-500">Click any deal card to inspect timeline and history</p>
-            </div>
-            <button
-              onClick={() => setSelectedBu(null)}
-              className="px-3 py-1 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs border border-slate-200"
-            >
-              Close List
-            </button>
-          </div>
+      {/* Global Filter Bar */}
+      <GlobalFilterBar
+        filters={filters}
+        onChange={setFilters}
+        dataset={dataset}
+      />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {selectedBuData.opps.map(opp => (
-              <div
-                key={opp.opportunity_id}
-                onClick={() => setSelectedOppId(opp.opportunity_id)}
-                className="p-3.5 bg-slate-50 hover:bg-blue-50/70 rounded-2xl border border-slate-200 cursor-pointer transition-colors space-y-1"
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono font-bold text-blue-600">{opp.opportunity_id}</span>
-                  <span className="font-extrabold text-slate-900">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
-                </div>
-                <h4 className="font-bold text-slate-900 text-xs truncate">{opp.opportunity_name}</h4>
-                <p className="text-[11px] text-slate-500">{opp.region} &bull; {opp.expiry_quarter}</p>
-              </div>
-            ))}
-          </div>
+      {/* 4) Small Total Line above the table that updates with the filters */}
+      <div className="bg-blue-50 border border-blue-200 p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-blue-900">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 text-blue-600 shrink-0" />
+          <span className="font-bold">
+            Total Filtered Value: <strong className="text-blue-700 text-sm">{formatCurrencyM(totalFilteredAcv)}</strong> across <strong className="text-slate-900">{filteredOpps.length} opportunities</strong>
+          </span>
         </div>
-      )}
 
+        <span className="text-[11px] font-mono text-blue-700 font-bold bg-white px-2.5 py-1 rounded-lg border border-blue-200">
+          Sorted Descending by ACV Amount
+        </span>
+      </div>
+
+      {/* Table of Opportunities */}
+      <DataTable
+        columns={columns}
+        data={filteredOpps}
+        keyExtractor={o => o.opportunity_id}
+        onRowClick={o => setSelectedOppId(o.opportunity_id)}
+        searchPlaceholder="Search opportunity name, ID, account..."
+      />
+
+      {/* Slide-over Opportunity Drawer */}
       <OpportunityDrawer
         oppId={selectedOppId}
         onClose={() => setSelectedOppId(null)}

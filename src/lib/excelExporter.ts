@@ -73,3 +73,74 @@ export const exportChangesToExcel = (data: DashboardData): void => {
   // Download XLSX
   XLSX.writeFile(wb, `RenewIQ_Changes_Export_${data.reportDate}.xlsx`);
 };
+
+export function exportReconciliationExcel(
+  period: string,
+  fiscalOpps: any[],
+  expiryOpps: any[],
+  summary: {
+    fiscalAcv: number;
+    fiscalCount: number;
+    expiryAcv: number;
+    expiryCount: number;
+    acvDiff: number;
+    countDiff: number;
+    categories: Record<string, { acv: number; count: number }>;
+  }
+): void {
+  const wb = XLSX.utils.book_new();
+  const formatM = (val: number) => Number((val / 1e6).toFixed(3));
+
+  // Sheet 1: Reconciliation Summary
+  const summaryRows = [
+    { 'Metric / Dimension': 'Fiscal Period Total', 'ACV Amount ($M)': formatM(summary.fiscalAcv), 'Opportunity Count': summary.fiscalCount },
+    { 'Metric / Dimension': 'Service Expiry Period Total', 'ACV Amount ($M)': formatM(summary.expiryAcv), 'Opportunity Count': summary.expiryCount },
+    { 'Metric / Dimension': 'Difference (Fiscal vs Expiry)', 'ACV Amount ($M)': formatM(summary.acvDiff), 'Opportunity Count': summary.countDiff },
+    { 'Metric / Dimension': '--- Category Breakdown (Fiscal) ---', 'ACV Amount ($M)': 0, 'Opportunity Count': 0 },
+    { 'Metric / Dimension': 'Closed Category', 'ACV Amount ($M)': formatM(summary.categories.Closed?.acv || 0), 'Opportunity Count': summary.categories.Closed?.count || 0 },
+    { 'Metric / Dimension': 'Commit Category', 'ACV Amount ($M)': formatM(summary.categories.Commit?.acv || 0), 'Opportunity Count': summary.categories.Commit?.count || 0 },
+    { 'Metric / Dimension': 'Best Case Category', 'ACV Amount ($M)': formatM(summary.categories['Best Case']?.acv || 0), 'Opportunity Count': summary.categories['Best Case']?.count || 0 },
+    { 'Metric / Dimension': 'Pipeline Category', 'ACV Amount ($M)': formatM(summary.categories.Pipeline?.acv || 0), 'Opportunity Count': summary.categories.Pipeline?.count || 0 },
+  ];
+  const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Reconciliation Summary');
+
+  // Sheet 2: Fiscal Period Opportunities
+  const fiscalRows = fiscalOpps.map(o => ({
+    'Opportunity ID': o.opportunity_id,
+    'Opportunity Name': o.opportunity_name,
+    'Account Name': o.account_name,
+    'Business Unit': o.business_unit,
+    'Region': o.region,
+    'Fiscal Period': o.fiscal_period,
+    'Service Expiry Quarter': o.expiry_quarter,
+    'Close Date': o.close_date,
+    'Forecast Category': o.forecast_category,
+    'Approval Status': o.approval_status,
+    'ACV Amount ($)': o.acv_amount,
+    'ACV Amount ($M)': formatM(o.acv_amount),
+  }));
+  const wsFiscal = XLSX.utils.json_to_sheet(fiscalRows);
+  XLSX.utils.book_append_sheet(wb, wsFiscal, `Fiscal Period`);
+
+  // Sheet 3: Service Expiry Opportunities
+  const expiryRows = expiryOpps.map(o => ({
+    'Opportunity ID': o.opportunity_id,
+    'Opportunity Name': o.opportunity_name,
+    'Account Name': o.account_name,
+    'Business Unit': o.business_unit,
+    'Region': o.region,
+    'Fiscal Period': o.fiscal_period,
+    'Service Expiry Quarter': o.expiry_quarter,
+    'Close Date': o.close_date,
+    'Forecast Category': o.forecast_category,
+    'Approval Status': o.approval_status,
+    'ACV Amount ($)': o.acv_amount,
+    'ACV Amount ($M)': formatM(o.acv_amount),
+  }));
+  const wsExpiry = XLSX.utils.json_to_sheet(expiryRows);
+  XLSX.utils.book_append_sheet(wb, wsExpiry, `Service Expiry`);
+
+  XLSX.writeFile(wb, `RenewIQ_Reconciliation_${period.replace(/\s+/g, '_')}.xlsx`);
+}
+

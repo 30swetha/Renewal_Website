@@ -1,6 +1,8 @@
 // Mobileum RenewIQ Data Ingestion & Normalization Service
+import * as XLSX from 'xlsx';
 import { db } from './database';
 import type { SnapshotRecord, OpportunitySnapshotRecord, ChangeLogRecord, DailySummaryRecord } from './database';
+
 
 export interface RawOpportunityInput {
   opportunity_id: string;
@@ -263,3 +265,174 @@ export function ingestSnapshot(
     dailySummaries,
   };
 }
+
+export interface FileValidationResult {
+  success: boolean;
+  message: string;
+  missingColumns?: string[];
+  recordCount?: number;
+  snapshotDate?: string;
+}
+
+/**
+ * Validates file headers for required columns, parses data rows,
+ * preserves yesterday's dataset for comparison, replaces target dataset,
+ * and notifies listeners to refresh all tabs automatically.
+ */
+export async function validateAndIngestDailyFile(
+  file: File,
+  snapshotDate: string
+): Promise<FileValidationResult> {
+  if (!file) {
+    return { success: false, message: 'No file provided for upload.' };
+  }
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+    
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      return { success: false, message: 'Uploaded file contains no readable sheets.' };
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+    if (!rawRows || rawRows.length < 2) {
+      return { success: false, message: 'Uploaded file has insufficient rows or is empty.' };
+    }
+
+    const normStr = (str: any) => String(str || '').toLowerCase().trim().replace(/[\_\-\s]+/g, ' ');
+
+    // Scan top rows for header matching
+    let headerRowIdx = -1;
+    let headers: string[] = [];
+
+    for (let r = 0; r < Math.min(10, rawRows.length); r++) {
+      const rowLine = rawRows[r].map(normStr).join(' ');
+      if (
+        rowLine.includes('opportunity id') ||
+        rowLine.includes('opp id') ||
+        rowLine.includes('acv') ||
+        rowLine.includes('forecast category') ||
+        rowLine.includes('amount')
+      ) {
+        headerRowIdx = r;
+        headers = rawRows[r].map(c => String(c).trim());
+        break;
+      }
+    }
+
+    if (headerRowIdx === -1) {
+      headerRowIdx = 0;
+      headers = rawRows[0].map(c => String(c).trim());
+    }
+
+    const normHeaders = headers.map(normStr);
+
+    const findCol = (possibleNames: string[]): number => {
+      return normHeaders.findIndex(h => possibleNames.some(p => h.includes(normStr(p)) || normStr(p).includes(h)));
+    };
+
+    const oppIdCol = findCol(['opportunity id 18 digit', 'opportunity id', 'opp id', 'id']);
+    const acvCol = findCol(['forecast acv amount', 'acv amount', 'acv', 'amount', 'val']);
+    const catCol = findCol(['forecast category', 'category', 'status category']);
+
+    // Required Columns Validation: Opportunity ID, ACV Amount, Forecast Category
+    const missingColumns: string[] = [];
+    if (oppIdCol === -1) missingColumns.push('Opportunity ID');
+    if (acvCol === -1) missingColumns.push('ACV Amount');
+    if (catCol === -1) missingColumns.push('Forecast Category');
+
+    if (missingColumns.length > 0) {
+      return {
+        success: false,
+        message: `Validation Error: Missing required column(s): ${missingColumns.join(', ')}. Please ensure your uploaded file contains columns for Opportunity ID, ACV Amount, and Forecast Category.`,
+        missingColumns,
+      };
+    }
+
+    // Optional columns
+    const nameCol = findCol(['opportunity name', 'account name', 'opp name', 'name']);
+    const accountCol = findCol(['account name', 'account']);
+    const statusCol = findCol(['approval status', 'approvalstatus', 'status']);
+    const quarterCol = findCol(['service expiry period', 'expiry quarter', 'period', 'quarter', 'fiscal period']);
+    const regionCol = findCol(['region', 'area']);
+    const subRegionCol = findCol(['sub-region', 'sub region']);
+    const buCol = findCol(['business unit', 'bu']);
+
+    const parsedOpps: RawOpportunityInput[] = [];
+
+    for (let r = headerRowIdx + 1; r < rawRows.length; r++) {
+      const row = rawRows[r];
+      if (!row || row.every((cell: any) => cell === '')) continue;
+
+      const oppId = String(row[oppIdCol] || '').trim();
+      if (!oppId) continue;
+
+      parsedOpps.push({
+        opportunity_id: oppId,
+        opportunity_name: nameCol !== -1 ? String(row[nameCol] || '').trim() : `Opportunity ${oppId}`,
+        account_name: accountCol !== -1 ? String(row[accountCol] || '').trim() : `Account ${oppId}`,
+        acv_amount: row[acvCol],
+        forecast_category: String(row[catCol] || 'Pipeline').trim(),
+        approval_status: statusCol !== -1 ? String(row[statusCol] || 'Blank').trim() : 'Blank',
+        expiry_quarter: quarterCol !== -1 ? String(row[quarterCol] || 'Q4-2026').trim() : 'Q4-2026',
+        region: regionCol !== -1 ? String(row[regionCol] || 'Sub-Saharan Africa').trim() : 'Sub-Saharan Africa',
+        sub_region: subRegionCol !== -1 ? String(row[subRegionCol] || '').trim() : '',
+        business_unit: buCol !== -1 ? String(row[buCol] || 'Enterprise').trim() : 'Enterprise',
+      });
+    }
+
+    if (parsedOpps.length === 0) {
+      return {
+        success: false,
+        message: 'Validation Error: No valid opportunity rows found in the uploaded file.',
+      };
+    }
+
+    // Save yesterday's dataset for comparison
+    const currentDateObj = new Date(snapshotDate);
+    const prevDateObj = new Date(currentDateObj);
+    prevDateObj.setDate(prevDateObj.getDate() - 1);
+    const yesterdayDate = prevDateObj.toISOString().split('T')[0];
+
+    const existingYesterdayOpps = db.getOpportunitiesForDate(yesterdayDate);
+    if (existingYesterdayOpps.length === 0) {
+      const activeSnaps = db.getSnapshots();
+      const currentBaselineDate = activeSnaps.length > 0 ? activeSnaps[0].snapshot_date : '2026-10-06';
+      const currentOpps = db.getOpportunitiesForDate(currentBaselineDate);
+      if (currentOpps.length > 0 && currentBaselineDate !== snapshotDate) {
+        db.saveSnapshot({
+          id: `SNAP-${yesterdayDate}`,
+          snapshot_date: yesterdayDate,
+          uploaded_at: new Date().toISOString(),
+          source_files: ['Baseline_Yesterday.xlsx'],
+          row_count: currentOpps.length,
+        }, currentOpps.map(o => ({ ...o, snapshot_date: yesterdayDate, id: `${yesterdayDate}_${o.opportunity_id}` })));
+      }
+    }
+
+    // Replace dataset for target snapshotDate
+    ingestSnapshot(snapshotDate, parsedOpps, [file.name]);
+
+    // Dispatch event to refresh all tabs automatically
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dataset-updated', { detail: { snapshotDate } }));
+    }
+
+    return {
+      success: true,
+      message: `Successfully ingested ${parsedOpps.length} opportunities for ${snapshotDate}. Yesterday's dataset saved for baseline comparison. All tabs refreshed!`,
+      recordCount: parsedOpps.length,
+      snapshotDate,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `File Processing Error: ${err.message || 'Failed to read or parse file.'}`,
+    };
+  }
+}
+

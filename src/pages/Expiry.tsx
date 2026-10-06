@@ -1,101 +1,166 @@
-import React, { useState } from 'react';
-import { Calendar } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { 
+  Calendar, 
+  AlertTriangle, 
+  TrendingUp, 
+  TrendingDown, 
+  Layers, 
+  X
+} from 'lucide-react';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
-import { db } from '../lib/database';
-import type { OpportunitySnapshotRecord } from '../lib/database';
+import { Badge } from '../components/ui/Badge';
+import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpportunity } from '../lib/sharedDataLayer';
+
+import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
 
 export const ExpiryPage: React.FC = () => {
-  const [viewMode, setViewMode] = useState<'today' | 'vsYesterday' | 'vsLastWeek'>('today');
+  const [filters, setFilters] = useState<GlobalFilterState>(INITIAL_FILTERS);
   const [metricMode, setMetricMode] = useState<'amount' | 'count'>('amount');
-  const [selectedCell, setSelectedCell] = useState<{ quarter: string; category: string } | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ rowKey: string; category: string } | null>(null);
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
 
-  const todayOpps = db.getOpportunitiesForDate('2026-10-06');
-  const yesterdayOpps = db.getOpportunitiesForDate('2026-10-05');
-  const lastweekOpps = db.getOpportunitiesForDate('2026-09-29');
+  const refreshKey = useDatasetRefresh();
 
-  const quarters = ['Q1-2026', 'Q2-2026', 'Q3-2026', 'Q4-2026'];
+  // Shared dataset for Today (latest) and Yesterday
+  const rawTodayOpps = useMemo(() => getSharedDataset(), [refreshKey]);
+  const rawYesterdayOpps = useMemo(() => getSharedDataset('yesterday'), [refreshKey]);
+
+
+  const todayOpps = useMemo(() => filterOpportunities(rawTodayOpps, filters), [rawTodayOpps, filters]);
+  const yesterdayOpps = useMemo(() => filterOpportunities(rawYesterdayOpps, filters), [rawYesterdayOpps, filters]);
+
+  // Rows and Columns definitions
+  const rows = ['Q1 2026', 'Q2 2026', 'Q3 2026', 'Q4 2026', '2027'];
   const categories = ['Closed', 'Commit', 'Best Case', 'Pipeline'];
 
-  const getCellValue = (quarter: string, category: string) => {
-    const filterFn = (opps: OpportunitySnapshotRecord[]) =>
-      opps.filter(o => o.expiry_quarter === quarter && o.forecast_category === category);
-
-    const todayItems = filterFn(todayOpps);
-    const yesterdayItems = filterFn(yesterdayOpps);
-    const lastweekItems = filterFn(lastweekOpps);
-
-    if (metricMode === 'amount') {
-      const todayVal = todayItems.reduce((s, o) => s + o.acv_amount, 0);
-      const yesterdayVal = yesterdayItems.reduce((s, o) => s + o.acv_amount, 0);
-      const lastweekVal = lastweekItems.reduce((s, o) => s + o.acv_amount, 0);
-
-      if (viewMode === 'today') return todayVal;
-      if (viewMode === 'vsYesterday') return todayVal - yesterdayVal;
-      return todayVal - lastweekVal;
-    } else {
-      const todayVal = todayItems.length;
-      const yesterdayVal = yesterdayItems.length;
-      const lastweekVal = lastweekItems.length;
-
-      if (viewMode === 'today') return todayVal;
-      if (viewMode === 'vsYesterday') return todayVal - yesterdayVal;
-      return todayVal - lastweekVal;
+  // Helper to determine the row key for an opportunity based on Close Date year / slippage
+  const getOppRowKey = (opp: SharedOpportunity): string => {
+    const closeDate = opp.close_date || '';
+    if (closeDate.startsWith('2027') || closeDate.includes('2027') || opp.is_slipped_to_2027) {
+      return '2027';
     }
+    let q = opp.fiscal_period || opp.expiry_quarter || 'Q4 2026';
+    if (q === 'Q1-2026') return 'Q1 2026';
+    if (q === 'Q2-2026') return 'Q2 2026';
+    if (q === 'Q3-2026') return 'Q3 2026';
+    if (q === 'Q4-2026') return 'Q4 2026';
+    return q;
   };
 
-  // Find max value for heatmap scaling
-  let maxHeatmapVal = 1;
-  quarters.forEach(q => {
-    categories.forEach(c => {
-      const val = Math.abs(getCellValue(q, c));
-      if (val > maxHeatmapVal) maxHeatmapVal = val;
+  // Pre-calculate aggregated cell metrics for Today and Yesterday
+  const cellData = useMemo(() => {
+    const map = new Map<string, {
+      todayVal: number;
+      yesterdayVal: number;
+      delta: number;
+      todayCount: number;
+      yesterdayCount: number;
+      countDelta: number;
+      opps: SharedOpportunity[];
+    }>();
+
+    rows.forEach(r => {
+      categories.forEach(c => {
+        const key = `${r}___${c}`;
+        const tOpps = todayOpps.filter(o => getOppRowKey(o) === r && o.forecast_category === c);
+        const yOpps = yesterdayOpps.filter(o => getOppRowKey(o) === r && o.forecast_category === c);
+
+        const tVal = tOpps.reduce((s, o) => s + o.acv_amount, 0);
+        const yVal = yOpps.reduce((s, o) => s + o.acv_amount, 0);
+        const deltaVal = tVal - yVal;
+
+        const tCnt = tOpps.length;
+        const yCnt = yOpps.length;
+        const deltaCnt = tCnt - yCnt;
+
+        map.set(key, {
+          todayVal: tVal,
+          yesterdayVal: yVal,
+          delta: deltaVal,
+          todayCount: tCnt,
+          yesterdayCount: yCnt,
+          countDelta: deltaCnt,
+          opps: tOpps.sort((a, b) => b.acv_amount - a.acv_amount),
+        });
+      });
     });
-  });
 
-  const getHeatmapColor = (val: number) => {
-    if (viewMode === 'today') {
-      const pct = Math.min(val / maxHeatmapVal, 1);
-      return `rgba(37, 99, 235, ${0.08 + pct * 0.45})`;
+    return map;
+  }, [todayOpps, yesterdayOpps]);
+
+  // Compute maximum amount across cells for heatmap color scaling (darker = higher amount)
+  const maxCellAmount = useMemo(() => {
+    let maxVal = 1;
+    cellData.forEach((data) => {
+      if (data.todayVal > maxVal) maxVal = data.todayVal;
+    });
+    return maxVal;
+  }, [cellData]);
+
+  // Dynamic Heatmap color calculation (Darker = Higher Amount)
+  const getHeatmapCellStyle = (val: number) => {
+    if (val === 0) {
+      return { backgroundColor: '#f8fafc', color: '#94a3b8' }; // Light gray for zero
     }
-    if (val > 0) return 'rgba(16, 185, 129, 0.2)';
-    if (val < 0) return 'rgba(239, 68, 68, 0.2)';
-    return 'rgba(241, 245, 249, 0.8)';
+
+    const ratio = Math.min(val / maxCellAmount, 1);
+    // HSL Blue scale: hue 224, saturation 85%, lightness from 95% down to 38%
+    const lightness = 95 - Math.pow(ratio, 0.65) * 57; 
+    const isDarkText = lightness > 65;
+
+    return {
+      backgroundColor: `hsl(224, 82%, ${lightness}%)`,
+      color: isDarkText ? '#0f172a' : '#ffffff',
+    };
   };
 
-  // Filtered cell opportunities for drill-down modal/list
-  const cellOpps = selectedCell
-    ? todayOpps.filter(o => o.expiry_quarter === selectedCell.quarter && o.forecast_category === selectedCell.category)
-    : [];
+  // Slippage metrics for the 2027 row
+  const slippageMetrics = useMemo(() => {
+    const opps2027 = todayOpps.filter(o => getOppRowKey(o) === '2027');
+    const yesterday2027 = yesterdayOpps.filter(o => getOppRowKey(o) === '2027');
+
+    const totalAcv = opps2027.reduce((s, o) => s + o.acv_amount, 0);
+    const yesterdayAcv = yesterday2027.reduce((s, o) => s + o.acv_amount, 0);
+    const acvDelta = totalAcv - yesterdayAcv;
+
+    const commitOpps = opps2027.filter(o => o.forecast_category === 'Commit');
+    const commitAcv = commitOpps.reduce((s, o) => s + o.acv_amount, 0);
+
+    return {
+      totalAcv,
+      totalCount: opps2027.length,
+      acvDelta,
+      commitAcv,
+      commitCount: commitOpps.length,
+    };
+  }, [todayOpps, yesterdayOpps]);
+
+  // Selected cell opportunities list
+  const selectedCellData = useMemo(() => {
+    if (!selectedCell) return null;
+    const key = `${selectedCell.rowKey}___${selectedCell.category}`;
+    return cellData.get(key) || null;
+  }, [selectedCell, cellData]);
 
   return (
-    <div className="space-y-6 pb-16 bg-slate-50 min-h-screen text-slate-900">
+    <div className="space-y-6 pb-20 bg-slate-50 min-h-screen text-slate-900">
       
-      {/* Top Header & Controls */}
+      {/* Top Header & Metric Controls */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-blue-600" />
-            <span>Service Expiry Heatmap & Quarter Timeline</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Contract renewal distribution mapped across expiry quarters and forecast categories
+            <h1 className="text-xl font-black text-slate-900">Service Expiry &amp; Close Date Heatmap</h1>
+          </div>
+          <p className="text-xs text-slate-500 max-w-2xl">
+            Distribution across 2026 Expiry Quarters and 2027 Close Dates. Darker cell shades indicate higher ACV concentration with Today vs Yesterday deltas.
           </p>
         </div>
 
-        {/* View Mode & Metric Toggles */}
-        <div className="flex flex-wrap items-center gap-3">
-          <SegmentedControl
-            options={[
-              { id: 'today', label: 'Today Snapshot' },
-              { id: 'vsYesterday', label: 'vs Yesterday' },
-              { id: 'vsLastWeek', label: 'vs Last Week' },
-            ]}
-            value={viewMode}
-            onChange={(val: any) => setViewMode(val)}
-          />
-
+        {/* Amount vs Count Toggle */}
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-xs font-bold text-slate-500">Metric View:</span>
           <SegmentedControl
             options={[
               { id: 'amount', label: 'Amount ($)' },
@@ -107,98 +172,266 @@ export const ExpiryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Expiry Heatmap Matrix */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-        <h3 className="font-extrabold text-slate-900 text-sm">
-          Expiry Quarter vs Forecast Category Heatmap Grid
-        </h3>
+      {/* Global Filter Bar */}
+      <GlobalFilterBar
+        filters={filters}
+        onChange={setFilters}
+        dataset={rawTodayOpps}
+      />
 
+      {/* Heatmap Grid Matrix Container */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+          <div>
+            <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+              <Layers className="h-4 w-4 text-blue-600" />
+              <span>Expiry Quarters (Q1-Q4 2026) &amp; 2027 Slippage Heatmap</span>
+            </h3>
+            <p className="text-xs text-slate-500">Click any cell to list matching contracts</p>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400 font-bold">Color intensity:</span>
+            <div className="flex items-center gap-1 font-mono text-[10px] text-slate-600">
+              <span className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded">Lower</span>
+              <span className="h-2.5 w-12 rounded bg-gradient-to-r from-blue-100 via-blue-500 to-blue-800"></span>
+              <span className="px-2 py-0.5 bg-blue-900 text-white rounded font-bold">Higher</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Heatmap Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-center border-collapse">
             <thead>
-              <tr className="border-b border-slate-200">
-                <th className="py-3 px-4 text-left font-extrabold text-xs uppercase text-slate-400">Quarter</th>
+              <tr className="border-b border-slate-200 bg-slate-50 text-slate-700">
+                <th className="py-3 px-4 text-left font-black text-xs uppercase tracking-wider text-slate-500">
+                  Period / Year
+                </th>
                 {categories.map(cat => (
-                  <th key={cat} className="py-3 px-4 font-extrabold text-xs uppercase text-slate-700">
+                  <th key={cat} className="py-3 px-4 font-black text-xs uppercase tracking-wider text-slate-800">
                     {cat}
                   </th>
                 ))}
-                <th className="py-3 px-4 font-extrabold text-xs uppercase text-slate-900 bg-slate-100">
-                  Quarter Total
+                <th className="py-3 px-4 font-black text-xs uppercase tracking-wider text-slate-900 bg-slate-100">
+                  Row Total
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {quarters.map(q => {
-                let rowTotal = 0;
+            <tbody className="divide-y divide-slate-200">
+              {rows.map(rKey => {
+                const is2027 = rKey === '2027';
+                let rowTotalVal = 0;
+                let rowTotalDelta = 0;
+                let rowTotalCount = 0;
+                let rowTotalCountDelta = 0;
+
                 return (
-                  <tr key={q}>
-                    <td className="py-4 px-4 text-left font-bold text-slate-900 text-xs bg-slate-50">
-                      {q}
+                  <tr key={rKey} className={is2027 ? 'bg-amber-50/30' : ''}>
+                    {/* Row Header Label */}
+                    <td className={`py-4 px-4 text-left font-black text-xs ${
+                      is2027 ? 'bg-amber-100/70 text-amber-950 font-black' : 'bg-slate-50 text-slate-900'
+                    }`}>
+                      <div className="flex items-center gap-1.5">
+                        <span>{rKey}</span>
+                        {is2027 && (
+                          <span className="px-2 py-0.5 bg-amber-200/80 text-amber-900 rounded-md text-[10px] font-mono uppercase font-extrabold">
+                            Slippage
+                          </span>
+                        )}
+                      </div>
                     </td>
+
+                    {/* Category Cells */}
                     {categories.map(cat => {
-                      const val = getCellValue(q, cat);
-                      rowTotal += val;
-                      const formatted = metricMode === 'amount' 
-                        ? `$${(val / 1e6).toFixed(2)}M`
-                        : val.toLocaleString();
+                      const key = `${rKey}___${cat}`;
+                      const cell = cellData.get(key) || {
+                        todayVal: 0,
+                        yesterdayVal: 0,
+                        delta: 0,
+                        todayCount: 0,
+                        yesterdayCount: 0,
+                        countDelta: 0,
+                        opps: [],
+                      };
+
+                      rowTotalVal += cell.todayVal;
+                      rowTotalDelta += cell.delta;
+                      rowTotalCount += cell.todayCount;
+                      rowTotalCountDelta += cell.countDelta;
+
+                      const isSelected = selectedCell?.rowKey === rKey && selectedCell?.category === cat;
+                      const cellStyle = getHeatmapCellStyle(metricMode === 'amount' ? cell.todayVal : cell.todayCount * 5e6);
+
+                      const displayMain = metricMode === 'amount'
+                        ? formatCurrencyM(cell.todayVal)
+                        : `${cell.todayCount} deals`;
+
+                      const deltaVal = metricMode === 'amount' ? cell.delta : cell.countDelta;
 
                       return (
                         <td
                           key={cat}
-                          onClick={() => setSelectedCell({ quarter: q, category: cat })}
-                          style={{ backgroundColor: getHeatmapColor(val) }}
-                          className="py-4 px-4 font-extrabold text-xs text-slate-900 border border-slate-200 rounded-2xl cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
+                          onClick={() => setSelectedCell({ rowKey: rKey, category: cat })}
+                          style={cellStyle}
+                          className={`py-4 px-4 border border-slate-200 transition-all cursor-pointer relative group ${
+                            isSelected ? 'ring-3 ring-blue-600 z-10 scale-[1.02] shadow-md' : 'hover:opacity-90'
+                          }`}
                         >
-                          {viewMode !== 'today' && val > 0 ? `+${formatted}` : formatted}
+                          <div className="flex flex-col items-center justify-center space-y-1">
+                            {/* Main Value */}
+                            <span className="font-black text-xs sm:text-sm tracking-tight drop-shadow-xs">
+                              {displayMain}
+                            </span>
+
+                            {/* Today vs Yesterday Small Green / Red Delta */}
+                            <div className="flex items-center gap-0.5">
+                              {deltaVal > 0 ? (
+                                <span className="inline-flex items-center text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-500 text-white shadow-2xs font-mono">
+                                  <TrendingUp className="h-2.5 w-2.5 mr-0.5" />
+                                  +{metricMode === 'amount' ? formatCurrencyM(deltaVal) : deltaVal}
+                                </span>
+                              ) : deltaVal < 0 ? (
+                                <span className="inline-flex items-center text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-red-500 text-white shadow-2xs font-mono">
+                                  <TrendingDown className="h-2.5 w-2.5 mr-0.5" />
+                                  {metricMode === 'amount' ? formatCurrencyM(deltaVal) : deltaVal}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-slate-400 font-mono">
+                                  0
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </td>
                       );
                     })}
-                    <td className="py-4 px-4 font-black text-xs text-slate-900 bg-slate-100">
-                      {metricMode === 'amount' ? `$${(rowTotal / 1e6).toFixed(2)}M` : rowTotal.toLocaleString()}
+
+                    {/* Row Total Column */}
+                    <td className="py-4 px-4 font-black text-xs text-slate-900 bg-slate-100/90 border border-slate-200">
+                      <div className="flex flex-col items-center justify-center space-y-0.5">
+                        <span>
+                          {metricMode === 'amount' ? formatCurrencyM(rowTotalVal) : `${rowTotalCount} deals`}
+                        </span>
+                        <span className={`text-[10px] font-mono font-extrabold ${
+                          rowTotalDelta > 0 ? 'text-emerald-700' : rowTotalDelta < 0 ? 'text-red-600' : 'text-slate-400'
+                        }`}>
+                          {rowTotalDelta !== 0 && (rowTotalDelta > 0 ? '+' : '')}
+                          {metricMode === 'amount' ? (rowTotalDelta !== 0 ? formatCurrencyM(rowTotalDelta) : '') : (rowTotalCountDelta !== 0 ? rowTotalCountDelta : '')}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
+
+              {/* Note on Slippage directly under the 2027 row */}
+              <tr className="bg-amber-50/80 border-t-2 border-amber-300">
+                <td colSpan={6} className="p-4 text-left">
+                  <div className="flex items-start gap-2.5 text-xs text-amber-950">
+                    <AlertTriangle className="h-4.5 w-4.5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-bold">
+                        <strong className="font-black text-amber-900 uppercase tracking-wide">Note on Slippage to 2027:</strong>{' '}
+                        Total ACV with Close Date in 2027 stands at <strong className="font-black text-slate-900 text-sm">{formatCurrencyM(slippageMetrics.totalAcv)}</strong> across <strong className="font-extrabold text-slate-900">{slippageMetrics.totalCount} opportunities</strong>
+                        {slippageMetrics.acvDelta !== 0 && (
+                          <span className={`ml-1 font-mono font-bold ${slippageMetrics.acvDelta > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                            ({slippageMetrics.acvDelta > 0 ? '+' : ''}{formatCurrencyM(slippageMetrics.acvDelta)} vs yesterday)
+                          </span>
+                        )}.
+                      </p>
+                      <p className="text-[11.5px] text-amber-800">
+                        Includes <strong className="font-black text-blue-700">{formatCurrencyM(slippageMetrics.commitAcv)}</strong> in <strong className="font-bold">Commit</strong> forecast category across {slippageMetrics.commitCount} contracts that slipped past Q4 2026.
+                      </p>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
             </tbody>
           </table>
         </div>
+
       </div>
 
-      {/* Selected Cell Drill-Down Modal / List */}
-      {selectedCell && (
-        <div className="bg-white p-6 rounded-3xl border border-blue-200 shadow-md space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      {/* Selected Cell Opportunity List Table (Lists matching opportunities on cell click) */}
+      {selectedCell && selectedCellData && (
+        <div className="bg-white p-6 rounded-3xl border border-blue-300 shadow-md space-y-4 animate-in fade-in duration-150">
+          
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
             <div>
-              <h3 className="font-extrabold text-slate-900 text-sm">
-                Opportunities in {selectedCell.quarter} &bull; {selectedCell.category} ({cellOpps.length} contracts)
-              </h3>
-              <p className="text-xs text-slate-500">Click any row to view opportunity details</p>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-blue-600 text-white font-black text-xs rounded-xl shadow-xs">
+                  {selectedCell.rowKey} &bull; {selectedCell.category}
+                </span>
+                <span className="text-xs font-extrabold text-slate-500 font-mono">
+                  {selectedCellData.opps.length} Contracts &bull; Total: {formatCurrencyM(selectedCellData.todayVal)}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">Click any opportunity row to open full drawer details</p>
             </div>
+
             <button
               onClick={() => setSelectedCell(null)}
-              className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs border border-slate-200"
+              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer self-start sm:self-auto"
             >
-              Close List
+              <X className="h-4 w-4" />
+              <span>Close List</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {cellOpps.map(opp => (
-              <div
-                key={opp.opportunity_id}
-                onClick={() => setSelectedOppId(opp.opportunity_id)}
-                className="p-3.5 bg-slate-50 hover:bg-blue-50/70 rounded-2xl border border-slate-200 cursor-pointer transition-colors space-y-1"
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono font-bold text-blue-600">{opp.opportunity_id}</span>
-                  <span className="font-extrabold text-slate-900">${(opp.acv_amount / 1e6).toFixed(2)}M</span>
-                </div>
-                <h4 className="font-bold text-slate-900 text-xs truncate">{opp.opportunity_name}</h4>
-                <p className="text-[11px] text-slate-500">{opp.account_name} &bull; {opp.region}</p>
-              </div>
-            ))}
+          {/* Table of Cell Opportunities */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                  <th className="py-2.5 px-4">Opportunity Name</th>
+                  <th className="py-2.5 px-4">Region</th>
+                  <th className="py-2.5 px-4">Close Date</th>
+                  <th className="py-2.5 px-4">Forecast Category</th>
+                  <th className="py-2.5 px-4 text-right">ACV Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs font-medium">
+                {selectedCellData.opps.map(opp => (
+                  <tr
+                    key={opp.opportunity_id}
+                    onClick={() => setSelectedOppId(opp.opportunity_id)}
+                    className="hover:bg-blue-50/70 transition-colors cursor-pointer group"
+                  >
+                    <td className="py-3 px-4">
+                      <div className="font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">
+                        {opp.opportunity_name}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        {opp.opportunity_id} &bull; {opp.account_name}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 font-bold text-slate-700">
+                      {opp.region}
+                    </td>
+                    <td className="py-3 px-4 font-mono font-bold text-slate-600">
+                      {opp.close_date}
+                    </td>
+                    <td className="py-3 px-4">
+                      <Badge variant={
+                        opp.forecast_category === 'Closed' ? 'closed' :
+                        opp.forecast_category === 'Commit' ? 'commit' :
+                        opp.forecast_category === 'Best Case' ? 'bestcase' : 'pipeline'
+                      }>
+                        {opp.forecast_category}
+                      </Badge>
+                    </td>
+                    <td className="py-3 px-4 text-right font-black font-mono text-slate-900">
+                      {formatCurrencyM(opp.acv_amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+
         </div>
       )}
 

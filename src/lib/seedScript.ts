@@ -45,7 +45,7 @@ function generateMockOppsForDate(
     'NAMR GUAVUS', 
     'LATAM'
   ];
-  const bus = ['Enterprise', 'Mobility', 'Roaming & Network', 'Security & Fraud', 'Enterprise 5G'];
+  const bus = ['Roaming', 'Signalling', 'Testing', 'Enterprise', 'Mobility'];
   const categories = ['Closed', 'Commit', 'Best Case', 'Pipeline'];
   const approvals = ['Approved', 'Approved-2nd', 'Pending Approval', 'Pending-Approval', 'Blank', 'Rejected'];
 
@@ -84,7 +84,7 @@ function generateMockOppsForDate(
         account_name: `Account Delta ${i + 1}`,
         acv_amount: 180000 + i * 25000,
         forecast_category: i % 2 === 0 ? 'Closed' : 'Commit',
-        approval_status: 'Pending Approval',
+        approval_status: i % 3 === 0 ? 'Blank' : 'Pending-Approval',
         expiry_quarter: 'Q4 2026',
         region: regions[i % regions.length],
         sub_region: regions[i % regions.length],
@@ -122,7 +122,7 @@ function generateMockOppsForDate(
 
       result.push({
         opportunity_id: id,
-        opportunity_name: `Opportunity ${id} - ${reg}`,
+        opportunity_name: `Opportunity ${id} - ${bu}`,
         account_name: `Global Telecom Partner ${i + 1}`,
         acv_amount: acv,
         forecast_category: cat,

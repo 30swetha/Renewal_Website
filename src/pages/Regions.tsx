@@ -1,9 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Globe, 
   ArrowLeft, 
-  Filter, 
-  RotateCcw, 
   Minus, 
   CheckCircle2, 
   Layers, 
@@ -12,10 +9,11 @@ import {
   Activity
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
-import { getSharedDataset, formatCurrencyM, type SharedOpportunity } from '../lib/sharedDataLayer';
+import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpportunity } from '../lib/sharedDataLayer';
 import { Badge } from '../components/ui/Badge';
 import { DataTable, type ColumnDef } from '../components/ui/DataTable';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
+import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
 
 export const RegionsPage: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
@@ -23,27 +21,21 @@ export const RegionsPage: React.FC = () => {
   // Active Selected Region for Drilldown (null = show Region Grid Dashboard)
   const [selectedRegionName, setSelectedRegionName] = useState<string | null>(null);
 
-  // Shared Filter Toolbar State (BU & Category)
-  const [selectedBu, setSelectedBu] = useState<string>('All');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  // Global Filter State
+  const [filters, setFilters] = useState<GlobalFilterState>(INITIAL_FILTERS);
   const [groupByBu, setGroupByBu] = useState<boolean>(false);
 
-  // Fetch today & yesterday shared datasets for moving analysis
-  const todayDataset = useMemo(() => getSharedDataset('2026-10-06'), []);
-  const yesterdayDataset = useMemo(() => getSharedDataset('2026-10-05'), []);
+  const refreshKey = useDatasetRefresh();
 
-  // Filter today's dataset by top toolbar filters (BU & Category)
+  // Fetch today & yesterday shared datasets for moving analysis
+  const todayDataset = useMemo(() => getSharedDataset(), [refreshKey]);
+  const yesterdayDataset = useMemo(() => getSharedDataset('yesterday'), [refreshKey]);
+
+
+  // Filter today's dataset by top toolbar filters
   const filteredDataset = useMemo(() => {
-    return todayDataset.filter(opp => {
-      if (selectedBu !== 'All' && !opp.business_unit.toLowerCase().includes(selectedBu.toLowerCase())) {
-        return false;
-      }
-      if (selectedCategory !== 'All' && opp.forecast_category.toLowerCase() !== selectedCategory.toLowerCase()) {
-        return false;
-      }
-      return true;
-    });
-  }, [todayDataset, selectedBu, selectedCategory]);
+    return filterOpportunities(todayDataset, filters);
+  }, [todayDataset, filters]);
 
   // Extract dynamic list of regions from dataset
   const dynamicRegionsList = useMemo(() => {
@@ -87,24 +79,6 @@ export const RegionsPage: React.FC = () => {
 
     return Array.from(map.values());
   }, [dynamicRegionsList, filteredDataset]);
-
-  // Extract Business Units for dropdown filter
-  const dynamicBus = useMemo(() => {
-    const set = new Set<string>();
-    todayDataset.forEach(o => {
-      if (o.business_unit) {
-        o.business_unit.split(';').map(u => u.trim()).forEach(u => { if (u) set.add(u); });
-      }
-    });
-    return Array.from(set).sort();
-  }, [todayDataset]);
-
-  const isFilterActive = selectedBu !== 'All' || selectedCategory !== 'All';
-
-  const handleResetFilters = () => {
-    setSelectedBu('All');
-    setSelectedCategory('All');
-  };
 
   // Detailed Data for Active Selected Region Drilldown
   const activeRegionData = useMemo(() => {
@@ -249,80 +223,12 @@ export const RegionsPage: React.FC = () => {
   return (
     <div className="space-y-6 pb-20 bg-slate-50 min-h-screen text-slate-900">
       
-      {/* 1. Shared Filter Bar (BU & Category) */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
-          <div className="flex items-center gap-2">
-            {selectedRegionName && (
-              <button
-                onClick={() => setSelectedRegionName(null)}
-                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors cursor-pointer mr-1 flex items-center gap-1 text-xs font-bold"
-                title="Back to regions"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Back</span>
-              </button>
-            )}
-            <Globe className="h-5 w-5 text-blue-600" />
-            <h1 className="font-black text-slate-900 text-lg">
-              {selectedRegionName ? `${selectedRegionName} Region Analytics` : 'Regional Portfolio Dashboard'}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs">
-            <span className="text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200 font-bold">
-              Showing {filteredDataset.length} Total Contracts
-            </span>
-            {isFilterActive && (
-              <button
-                onClick={handleResetFilters}
-                className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 font-bold rounded-full hover:bg-amber-100 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                <span>Reset Filters</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Filter Toolbar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-          <div>
-            <label className="block text-[11px] font-bold text-slate-400 mb-1 flex items-center gap-1">
-              <Filter className="h-3 w-3 text-blue-600" />
-              <span>Business Unit Filter</span>
-            </label>
-            <select
-              value={selectedBu}
-              onChange={e => setSelectedBu(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-            >
-              <option value="All">All Business Units</option>
-              {dynamicBus.map(b => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-400 mb-1 flex items-center gap-1">
-              <Filter className="h-3 w-3 text-blue-600" />
-              <span>Forecast Category Filter</span>
-            </label>
-            <select
-              value={selectedCategory}
-              onChange={e => setSelectedCategory(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-            >
-              <option value="All">All Categories</option>
-              <option value="Closed">Closed</option>
-              <option value="Commit">Commit</option>
-              <option value="Best Case">Best Case</option>
-              <option value="Pipeline">Pipeline</option>
-            </select>
-          </div>
-        </div>
-      </div>
+      {/* Global Filter Bar */}
+      <GlobalFilterBar
+        filters={filters}
+        onChange={setFilters}
+        dataset={todayDataset}
+      />
 
       {/* VIEW MODE 1: Region Grid Dashboard (Default Overview when no region selected) */}
       {!selectedRegionName && (
