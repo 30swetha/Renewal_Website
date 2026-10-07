@@ -17,7 +17,6 @@ import {
   getWorkbookYesterdayOpps, 
   getWorkbookLastweekOpps, 
   getSlippageTo2027Opps, 
-  getExpiryFinalRows,
   getGlobalHeaderFilters
 } from '../lib/sharedDataLayer';
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
@@ -71,9 +70,6 @@ export const OverviewPage: React.FC = () => {
   const q4Yesterday = useMemo(() => getWorkbookYesterdayOpps('2026-10-06', 'Fiscal Q4'), [refreshKey]);
   const q4Lastweek = useMemo(() => getWorkbookLastweekOpps('2026-10-06', 'Fiscal Q4'), [refreshKey]);
 
-  // Read Expiry_Final pre-calculated rows directly from Fiscal Q4 dataset
-  const expiryFinalRows = useMemo(() => getExpiryFinalRows('2026-10-06', 'Fiscal Q4'), [refreshKey]);
-
   // Check if any opp has an unmapped region
   const hasOtherRegion = useMemo(() => {
     return q4Today.some(o => normalizeRegionName(o.sub_region || o.region) === 'Other');
@@ -83,56 +79,34 @@ export const OverviewPage: React.FC = () => {
     return hasOtherRegion ? [...FIXED_REGIONS, 'Other' as const] : [...FIXED_REGIONS];
   }, [hasOtherRegion]);
 
-  // SECTION 1: Total Renewal Q4 ACV Value (Using Expiry_Final pre-calculated sheet values)
+  // SECTION 1: Total Renewal ACV Value & Contract Count (Dynamically calculated from filtered opportunity rows)
   const totalQ4AcvToday = useMemo(() => {
-    if (expiryFinalRows.length > 0) {
-      const sum = expiryFinalRows.reduce((s: number, r) => s + r.todayAmount, 0);
-      if (sum > 0) return sum;
-    }
-    return q4Today.reduce((s: number, o) => s + o.acv_amount, 0);
-  }, [q4Today, expiryFinalRows]);
+    return q4Today.reduce((s: number, o) => s + (Number(o.acv_amount) || 0), 0);
+  }, [q4Today]);
 
   const totalQ4AcvYesterday = useMemo(() => {
-    if (expiryFinalRows.length > 0) {
-      const sumTY = expiryFinalRows.reduce((s: number, r) => s + r.tyAmount, 0);
-      if (sumTY !== 0) return totalQ4AcvToday - sumTY;
-    }
-    return q4Yesterday.reduce((s: number, o) => s + o.acv_amount, 0);
-  }, [q4Yesterday, expiryFinalRows, totalQ4AcvToday]);
+    return q4Yesterday.reduce((s: number, o) => s + (Number(o.acv_amount) || 0), 0);
+  }, [q4Yesterday]);
 
   const totalQ4AcvLastweek = useMemo(() => {
-    if (expiryFinalRows.length > 0) {
-      const sumTLW = expiryFinalRows.reduce((s: number, r) => s + r.tlwAmount, 0);
-      if (sumTLW !== 0) return totalQ4AcvToday - sumTLW;
-    }
-    return q4Lastweek.reduce((s: number, o) => s + o.acv_amount, 0);
-  }, [q4Lastweek, expiryFinalRows, totalQ4AcvToday]);
+    return q4Lastweek.reduce((s: number, o) => s + (Number(o.acv_amount) || 0), 0);
+  }, [q4Lastweek]);
 
   const totalCountToday = useMemo(() => {
-    if (expiryFinalRows.length > 0) {
-      const sum = expiryFinalRows.reduce((s: number, r) => s + r.todayCount, 0);
-      if (sum > 0) return sum;
-    }
     return q4Today.length;
-  }, [q4Today, expiryFinalRows]);
+  }, [q4Today]);
 
   // SECTION 2: Four Fixed Category Cards (Closed, Commit, Best Case, Pipeline)
   const getCategoryMetrics = (category: string) => {
-    const sheetRow = expiryFinalRows.find(r => r.category.toLowerCase() === category.toLowerCase());
     const tOpps = q4Today.filter(o => o.forecast_category.toLowerCase() === category.toLowerCase());
     const yOpps = q4Yesterday.filter(o => o.forecast_category.toLowerCase() === category.toLowerCase());
     const lwOpps = q4Lastweek.filter(o => o.forecast_category.toLowerCase() === category.toLowerCase());
 
-    const tAcv = sheetRow && sheetRow.todayAmount > 0 ? sheetRow.todayAmount : tOpps.reduce((s: number, o) => s + o.acv_amount, 0);
-    const tCnt = sheetRow && sheetRow.todayCount > 0 ? sheetRow.todayCount : tOpps.length;
+    const tAcv = tOpps.reduce((s: number, o) => s + (Number(o.acv_amount) || 0), 0);
+    const tCnt = tOpps.length;
 
-    const yAcv = sheetRow && sheetRow.tyAmount !== undefined && sheetRow.tyAmount !== 0
-      ? tAcv - sheetRow.tyAmount 
-      : yOpps.reduce((s: number, o) => s + o.acv_amount, 0);
-
-    const lwAcv = sheetRow && sheetRow.tlwAmount !== undefined && sheetRow.tlwAmount !== 0
-      ? tAcv - sheetRow.tlwAmount
-      : lwOpps.reduce((s: number, o) => s + o.acv_amount, 0);
+    const yAcv = yOpps.reduce((s: number, o) => s + (Number(o.acv_amount) || 0), 0);
+    const lwAcv = lwOpps.reduce((s: number, o) => s + (Number(o.acv_amount) || 0), 0);
 
     return {
       todayAcv: tAcv,
@@ -144,10 +118,10 @@ export const OverviewPage: React.FC = () => {
     };
   };
 
-  const closedMetrics = useMemo(() => getCategoryMetrics('Closed'), [expiryFinalRows, q4Today, q4Yesterday, q4Lastweek]);
-  const commitMetrics = useMemo(() => getCategoryMetrics('Commit'), [expiryFinalRows, q4Today, q4Yesterday, q4Lastweek]);
-  const bestCaseMetrics = useMemo(() => getCategoryMetrics('Best Case'), [expiryFinalRows, q4Today, q4Yesterday, q4Lastweek]);
-  const pipelineMetrics = useMemo(() => getCategoryMetrics('Pipeline'), [expiryFinalRows, q4Today, q4Yesterday, q4Lastweek]);
+  const closedMetrics = useMemo(() => getCategoryMetrics('Closed'), [q4Today, q4Yesterday, q4Lastweek]);
+  const commitMetrics = useMemo(() => getCategoryMetrics('Commit'), [q4Today, q4Yesterday, q4Lastweek]);
+  const bestCaseMetrics = useMemo(() => getCategoryMetrics('Best Case'), [q4Today, q4Yesterday, q4Lastweek]);
+  const pipelineMetrics = useMemo(() => getCategoryMetrics('Pipeline'), [q4Today, q4Yesterday, q4Lastweek]);
 
   // SECTION 3: Slippage to 2027 (Strict single definition across entire app)
   const slippedToday = useMemo(() => getSlippageTo2027Opps('2026-10-06'), [refreshKey]);

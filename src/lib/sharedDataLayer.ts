@@ -85,32 +85,35 @@ export function matchesGlobalFilters(opp: SharedOpportunity, filters?: GlobalHea
   if (f.year !== 'All') {
     const y = f.year;
     const yShort = y.substring(2); // e.g. '26'
-    const matchesFpYear = fp.includes(y) || fp.includes(yShort);
-    const matchesCloseYear = closeDate.includes(y);
-    const matchesEndYear = serviceEndDate.includes(y);
 
-    if (!matchesFpYear && !matchesCloseYear && !matchesEndYear) {
-      return false;
+    if (fp) {
+      const matchesFpYear = fp.includes(y) || fp.includes(`-${yShort}`) || fp.includes(` ${yShort}`) || fp.endsWith(yShort);
+      if (!matchesFpYear) return false;
+    } else {
+      const matchesCloseYear = closeDate.includes(y);
+      const matchesEndYear = serviceEndDate.includes(y);
+      if (!matchesCloseYear && !matchesEndYear) return false;
     }
   }
 
   // 3. Quarter Filter
   if (f.quarter !== 'All') {
     const q = f.quarter.toUpperCase(); // e.g. 'Q4'
-    const matchesFpQ = fp.includes(q);
 
-    let matchesDateQ = false;
-    const d = closeDate || serviceEndDate;
-    if (d && d.includes('-')) {
-      const month = parseInt(d.split('-')[1] || '0', 10);
-      if (q === 'Q1' && month >= 1 && month <= 3) matchesDateQ = true;
-      if (q === 'Q2' && month >= 4 && month <= 6) matchesDateQ = true;
-      if (q === 'Q3' && month >= 7 && month <= 9) matchesDateQ = true;
-      if (q === 'Q4' && month >= 10 && month <= 12) matchesDateQ = true;
-    }
-
-    if (!matchesFpQ && !matchesDateQ) {
-      return false;
+    if (fp) {
+      const matchesFpQ = fp.includes(q);
+      if (!matchesFpQ) return false;
+    } else {
+      let matchesDateQ = false;
+      const d = closeDate || serviceEndDate;
+      if (d && d.includes('-')) {
+        const month = parseInt(d.split('-')[1] || '0', 10);
+        if (q === 'Q1' && month >= 1 && month <= 3) matchesDateQ = true;
+        if (q === 'Q2' && month >= 4 && month <= 6) matchesDateQ = true;
+        if (q === 'Q3' && month >= 7 && month <= 9) matchesDateQ = true;
+        if (q === 'Q4' && month >= 10 && month <= 12) matchesDateQ = true;
+      }
+      if (!matchesDateQ) return false;
     }
   }
 
