@@ -4,8 +4,12 @@ import {
   Layers, 
   Activity, 
   BarChart2, 
-  ExternalLink,
-  DollarSign
+  DollarSign,
+  Search,
+  ChevronDown,
+  ChevronRight,
+  Check,
+  ArrowUpDown
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -21,6 +25,465 @@ import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpport
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
 import { Badge } from '../components/ui/Badge';
 
+// 5 Canonical Approval Statuses in fixed required order
+const FIXED_STATUSES = [
+  'Approved',
+  'Approved - 2nd',
+  'Pending Approval',
+  'Not yet proposed',
+  'Rejected / Other'
+] as const;
+
+type CanonicalStatus = typeof FIXED_STATUSES[number];
+
+// Status Precedence Rank (lower number = more advanced status)
+const STATUS_RANK: Record<CanonicalStatus, number> = {
+  'Approved - 2nd': 1,
+  'Approved': 2,
+  'Pending Approval': 3,
+  'Rejected / Other': 4,
+  'Not yet proposed': 5,
+};
+
+const STATUS_COLORS: Record<CanonicalStatus, string> = {
+  'Approved': '#10B981',
+  'Approved - 2nd': '#0D9488',
+  'Pending Approval': '#F59E0B',
+  'Not yet proposed': '#94A3B8',
+  'Rejected / Other': '#EF4444',
+};
+
+// Helper function to match raw status string to 5 canonical statuses
+const matchCanonicalStatus = (rawStatus?: string | null): CanonicalStatus => {
+  if (!rawStatus) return 'Not yet proposed';
+  const s = rawStatus.trim().toLowerCase();
+  if (!s || s === 'blank' || s === 'none' || s === 'yet to be proposed' || s === 'not yet proposed') {
+    return 'Not yet proposed';
+  }
+  if (s.includes('2nd') || s.includes('approved - 2nd') || s.includes('approved-2nd') || s.includes('second')) {
+    return 'Approved - 2nd';
+  }
+  if (s === 'approved' || s === 'approval approved') {
+    return 'Approved';
+  }
+  if (s.includes('pending') || s.includes('in review') || s.includes('awaiting')) {
+    return 'Pending Approval';
+  }
+  if (s.includes('reject') || s.includes('denied') || s.includes('other')) {
+    return 'Rejected / Other';
+  }
+  return 'Rejected / Other';
+};
+
+interface ProcessedOpportunity extends SharedOpportunity {
+  canonicalStatus: CanonicalStatus;
+  uniqueId: string;
+}
+
+// Sub-component for individual Table (Table 1 >= 100K or Table 2 < 100K)
+interface OpportunityTableSectionProps {
+  title: string;
+  subtitle: string;
+  opps: ProcessedOpportunity[];
+  isGreater: boolean;
+  onSelectOpp: (id: string) => void;
+}
+
+const OpportunityTableSection: React.FC<OpportunityTableSectionProps> = ({
+  title,
+  subtitle,
+  opps,
+  isGreater,
+  onSelectOpp,
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [collapsedStatuses, setCollapsedStatuses] = useState<Record<CanonicalStatus, boolean>>({
+    'Approved': false,
+    'Approved - 2nd': false,
+    'Pending Approval': false,
+    'Not yet proposed': false,
+    'Rejected / Other': false,
+  });
+  const [sortField, setSortField] = useState<'name' | 'region' | 'bu' | 'category' | 'amount' | 'status'>('amount');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Summary and Status Breakdown calculations
+  const summary = useMemo(() => {
+    const totalCount = opps.length;
+    const totalAcv = opps.reduce((s, o) => s + o.acv_amount, 0);
+
+    const breakdown = FIXED_STATUSES.map(st => {
+      const statusOpps = opps.filter(o => o.canonicalStatus === st);
+      const count = statusOpps.length;
+      const acv = statusOpps.reduce((s, o) => s + o.acv_amount, 0);
+      const pct = totalAcv > 0 ? (acv / totalAcv) * 100 : 0;
+      return {
+        status: st,
+        count,
+        acv,
+        pct: pct.toFixed(1),
+        opps: statusOpps,
+      };
+    });
+
+    const sumCount = breakdown.reduce((s, r) => s + r.count, 0);
+    const sumAcv = breakdown.reduce((s, r) => s + r.acv, 0);
+
+    return {
+      totalCount,
+      totalAcv,
+      breakdown,
+      sumCount,
+      sumAcv,
+    };
+  }, [opps]);
+
+  // Toggle collapse state for a status group
+  const toggleCollapse = (st: CanonicalStatus) => {
+    setCollapsedStatuses(prev => ({
+      ...prev,
+      [st]: !prev[st],
+    }));
+  };
+
+  // Handle sorting click
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'amount' ? 'desc' : 'asc');
+    }
+  };
+
+  // Filter & sort opportunities
+  const filteredAndSortedOpps = useMemo(() => {
+    let result = [...opps];
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(o => 
+        o.opportunity_name.toLowerCase().includes(q) ||
+        o.account_name.toLowerCase().includes(q) ||
+        o.region.toLowerCase().includes(q) ||
+        o.business_unit.toLowerCase().includes(q) ||
+        o.forecast_category.toLowerCase().includes(q) ||
+        o.canonicalStatus.toLowerCase().includes(q)
+      );
+    }
+
+    result.sort((a, b) => {
+      let comp = 0;
+      if (sortField === 'amount') {
+        comp = a.acv_amount - b.acv_amount;
+      } else if (sortField === 'name') {
+        comp = a.opportunity_name.localeCompare(b.opportunity_name);
+      } else if (sortField === 'region') {
+        comp = a.region.localeCompare(b.region);
+      } else if (sortField === 'bu') {
+        comp = a.business_unit.localeCompare(b.business_unit);
+      } else if (sortField === 'category') {
+        comp = a.forecast_category.localeCompare(b.forecast_category);
+      } else if (sortField === 'status') {
+        comp = a.canonicalStatus.localeCompare(b.canonicalStatus);
+      }
+      return sortDirection === 'desc' ? -comp : comp;
+    });
+
+    return result;
+  }, [opps, searchQuery, sortField, sortDirection]);
+
+  // Group filtered opps by fixed statuses
+  const groupedFilteredOpps = useMemo(() => {
+    const groups: Record<CanonicalStatus, ProcessedOpportunity[]> = {
+      'Approved': [],
+      'Approved - 2nd': [],
+      'Pending Approval': [],
+      'Not yet proposed': [],
+      'Rejected / Other': [],
+    };
+
+    filteredAndSortedOpps.forEach(o => {
+      groups[o.canonicalStatus].push(o);
+    });
+
+    return groups;
+  }, [filteredAndSortedOpps]);
+
+  return (
+    <div className={`bg-white p-6 rounded-3xl border-2 ${isGreater ? 'border-blue-200 shadow-sm' : 'border-slate-200 shadow-xs'} space-y-6`}>
+      
+      {/* 1) SUMMARY ROW AT TOP */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <DollarSign className={`h-5 w-5 ${isGreater ? 'text-blue-600' : 'text-slate-600'}`} />
+            <h2 className="text-base font-black text-slate-900 tracking-tight">
+              {title}
+            </h2>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+        </div>
+
+        {/* Total Count and Total ACV Summary Row Badges */}
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="bg-slate-100 px-3.5 py-1.5 rounded-2xl border border-slate-200 text-slate-900 flex items-center gap-2">
+            <span className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Total Count:</span>
+            <span className="font-mono font-black text-xs">{summary.totalCount} Deals</span>
+          </div>
+
+          <div className={`px-4 py-1.5 rounded-2xl text-white font-mono font-black text-sm shadow-2xs flex items-center gap-2 ${
+            isGreater ? 'bg-blue-600' : 'bg-slate-800'
+          }`}>
+            <span className="text-[10.5px] font-extrabold text-blue-200 uppercase tracking-wider font-sans">Total ACV:</span>
+            <span>{formatCurrencyM(summary.totalAcv)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 2) STATUS BREAKDOWN TABLE WITH CHECK LINE */}
+      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+        <h3 className="text-xs font-black uppercase tracking-wider text-slate-600">
+          Status Breakdown
+        </h3>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 text-[10.5px] font-black text-slate-500 uppercase tracking-wider bg-white">
+                <th className="py-2 px-3">Approval Status</th>
+                <th className="py-2 px-3 text-center">Opp Count</th>
+                <th className="py-2 px-3 text-right">Total ACV Amount</th>
+                <th className="py-2 px-3 text-right">% of Table Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 bg-white font-semibold">
+              {summary.breakdown.map((row) => (
+                <tr 
+                  key={row.status} 
+                  onClick={() => toggleCollapse(row.status as CanonicalStatus)}
+                  className="hover:bg-blue-50/60 transition-colors cursor-pointer"
+                >
+                  <td className="py-2.5 px-3 flex items-center gap-2">
+                    <span 
+                      className="h-2.5 w-2.5 rounded-full shrink-0" 
+                      style={{ backgroundColor: STATUS_COLORS[row.status as CanonicalStatus] }} 
+                    />
+                    <span className="font-bold text-slate-900">{row.status}</span>
+                  </td>
+                  <td className="py-2.5 px-3 text-center">
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 font-mono font-bold text-slate-800">
+                      {row.count}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-black font-mono text-slate-900">
+                    {formatCurrencyM(row.acv)}
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-mono text-slate-600">
+                    {row.pct}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Small "Check" Line confirming totals add up */}
+        <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 font-mono font-bold w-fit">
+          <Check className="h-3.5 w-3.5 text-emerald-600 stroke-[3]" />
+          <span>Check: 100% of deals ({summary.sumCount}/{summary.totalCount}) and {formatCurrencyM(summary.sumAcv)} ACV accounted for</span>
+        </div>
+      </div>
+
+      {/* 3) SEARCH BOX & SORTABLE OPPORTUNITIES LIST GROUPED BY APPROVAL STATUS */}
+      <div className="space-y-4">
+        
+        {/* Search Box */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <span>Opportunity Breakdown List</span>
+            <span className="text-xs font-normal text-slate-500">(Grouped by Status &bull; Click status to expand/collapse)</span>
+          </h3>
+
+          <div className="relative max-w-xs w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search opportunity, region, BU..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Grouped Status List */}
+        <div className="space-y-4">
+          {FIXED_STATUSES.map(st => {
+            const oppsInStatus = groupedFilteredOpps[st] || [];
+            const isCollapsed = collapsedStatuses[st];
+            const statusAcv = oppsInStatus.reduce((s, o) => s + o.acv_amount, 0);
+
+            return (
+              <div key={st} className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                
+                {/* Clickable Status Group Header */}
+                <div 
+                  onClick={() => toggleCollapse(st)}
+                  className="px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-2.5">
+                    {isCollapsed ? (
+                      <ChevronRight className="h-4 w-4 text-slate-400" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                    )}
+                    <span 
+                      className="h-3 w-3 rounded-full shrink-0" 
+                      style={{ backgroundColor: STATUS_COLORS[st] }} 
+                    />
+                    <span className="text-xs font-black text-slate-900 tracking-wide">
+                      {st}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-mono text-[10.5px] font-bold">
+                      {oppsInStatus.length} {oppsInStatus.length === 1 ? 'deal' : 'deals'}
+                    </span>
+                  </div>
+
+                  <div className="font-mono font-black text-xs text-slate-900">
+                    {formatCurrencyM(statusAcv)}
+                  </div>
+                </div>
+
+                {/* Collapsible Table Content */}
+                {!isCollapsed && (
+                  <div>
+                    {oppsInStatus.length === 0 ? (
+                      <div className="py-4 text-center text-slate-400 text-xs font-medium bg-white">
+                        No Q4 FY26 opportunities in <strong className="font-bold text-slate-600">{st}</strong> status.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-black text-[10.5px] uppercase tracking-wider">
+                              <th 
+                                onClick={() => handleSort('name')}
+                                className="py-2.5 px-4 cursor-pointer hover:bg-slate-200/60 transition-colors"
+                              >
+                                <div className="flex items-center gap-1">
+                                  <span>Opportunity Name</span>
+                                  <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                                </div>
+                              </th>
+                              <th 
+                                onClick={() => handleSort('region')}
+                                className="py-2.5 px-4 cursor-pointer hover:bg-slate-200/60 transition-colors"
+                              >
+                                <div className="flex items-center gap-1">
+                                  <span>Region</span>
+                                  <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                                </div>
+                              </th>
+                              <th 
+                                onClick={() => handleSort('bu')}
+                                className="py-2.5 px-4 cursor-pointer hover:bg-slate-200/60 transition-colors"
+                              >
+                                <div className="flex items-center gap-1">
+                                  <span>Business Unit</span>
+                                  <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                                </div>
+                              </th>
+                              <th 
+                                onClick={() => handleSort('amount')}
+                                className="py-2.5 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition-colors"
+                              >
+                                <div className="flex items-center justify-end gap-1">
+                                  <span>Amount</span>
+                                  <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                                </div>
+                              </th>
+                              <th 
+                                onClick={() => handleSort('category')}
+                                className="py-2.5 px-4 text-center cursor-pointer hover:bg-slate-200/60 transition-colors"
+                              >
+                                <div className="flex items-center justify-center gap-1">
+                                  <span>Forecast Category</span>
+                                  <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                                </div>
+                              </th>
+                              <th 
+                                onClick={() => handleSort('status')}
+                                className="py-2.5 px-4 text-center cursor-pointer hover:bg-slate-200/60 transition-colors"
+                              >
+                                <div className="flex items-center justify-center gap-1">
+                                  <span>Approval Status</span>
+                                  <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                                </div>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {oppsInStatus.map(opp => (
+                              <tr
+                                key={opp.uniqueId}
+                                onClick={() => onSelectOpp(opp.opportunity_id)}
+                                className="hover:bg-blue-50/70 transition-colors cursor-pointer group"
+                              >
+                                <td className="py-3 px-4 text-left">
+                                  <div className="font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">
+                                    {opp.opportunity_name}
+                                  </div>
+                                  <div className="text-[10.5px] text-slate-400 font-mono">
+                                    {opp.opportunity_id} &bull; {opp.account_name}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-left font-semibold text-slate-800">
+                                  {opp.region}
+                                </td>
+                                <td className="py-3 px-4 text-left font-medium text-slate-600">
+                                  {opp.business_unit}
+                                </td>
+                                <td className="py-3 px-4 text-right font-black font-mono text-slate-900 text-sm">
+                                  {formatCurrencyM(opp.acv_amount)}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <Badge variant={
+                                    opp.forecast_category === 'Closed' ? 'closed' :
+                                    opp.forecast_category === 'Commit' ? 'commit' :
+                                    opp.forecast_category === 'Best Case' ? 'bestcase' : 'pipeline'
+                                  }>
+                                    {opp.forecast_category}
+                                  </Badge>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span 
+                                    className="px-2.5 py-1 rounded-full text-[11px] font-extrabold text-white shadow-2xs font-mono inline-block"
+                                    style={{ backgroundColor: STATUS_COLORS[opp.canonicalStatus] }}
+                                  >
+                                    {opp.canonicalStatus}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </div>
+            );
+          })}
+        </div>
+
+      </div>
+
+    </div>
+  );
+};
+
 export const ApprovalsPage: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
   const [showMovementAnalysis, setShowMovementAnalysis] = useState(false);
@@ -31,7 +494,7 @@ export const ApprovalsPage: React.FC = () => {
   const rawTodayOpps = useMemo(() => getSharedDataset(), [refreshKey]);
 
   // Scope: Q4 Fiscal 2026 ONLY ([Fiscal Period] = Q4 2026 / Q4-2026)
-  const q4TodayOpps = useMemo(() => {
+  const q4OppsRaw = useMemo(() => {
     return rawTodayOpps.filter(o => {
       const rawPeriod = String(
         o.fiscal_period || 
@@ -43,40 +506,57 @@ export const ApprovalsPage: React.FC = () => {
       return (
         rawPeriod === 'Q4 2026' || 
         rawPeriod === 'Q4-2026' || 
+        rawPeriod === 'Q4 FY26' ||
         rawPeriod.includes('Q4') ||
         o.expiry_quarter.includes('Q4')
       );
     });
   }, [rawTodayOpps]);
 
-  // 5 Canonical Approval Statuses in required order
-  const approvalStatuses = ['Approved', 'Approved - 2nd', 'Pending-Approval', 'Blank', 'Rejected'] as const;
+  // Deduplicate by unique Opportunity ID and select most advanced status per precedence rules
+  const uniqueQ4Opps = useMemo(() => {
+    const map = new Map<string, ProcessedOpportunity>();
 
-  const statusColors: Record<string, string> = {
-    Approved: '#10B981',
-    'Approved - 2nd': '#0D9488',
-    'Pending-Approval': '#F59E0B',
-    Blank: '#94A3B8',
-    Rejected: '#EF4444',
-  };
+    q4OppsRaw.forEach(opp => {
+      const uniqueId = String(
+        opp.opportunity_id || 
+        opp.json_data?.['Opportunity ID 18 Digit'] || 
+        opp.json_data?.['Opportunity ID'] || 
+        opp.opportunity_name
+      ).trim();
+      if (!uniqueId) return;
 
-  // Helper to normalize status string from record into 5 canonical statuses
-  const getNormalizedStatus = (statusStr?: string | null): typeof approvalStatuses[number] => {
-    if (!statusStr) return 'Blank';
-    const s = statusStr.trim();
-    if (s === 'Approved') return 'Approved';
-    if (s.includes('2nd') || s.includes('Approved-2nd') || s.includes('Approved - 2nd')) return 'Approved - 2nd';
-    if (s.includes('Pending')) return 'Pending-Approval';
-    if (s === 'Rejected') return 'Rejected';
-    return 'Blank';
-  };
+      const rawStatus = opp.approval_status || opp.json_data?.['Approval Status'] || opp.json_data?.['Status'];
+      const status = matchCanonicalStatus(rawStatus);
 
-  // 1. Approval Status Funnel / Horizontal Bar Chart Data (Q4 FY26 Only)
+      if (!map.has(uniqueId)) {
+        map.set(uniqueId, {
+          ...opp,
+          canonicalStatus: status,
+          uniqueId,
+        });
+      } else {
+        const existing = map.get(uniqueId)!;
+        // Compare status rank and select the most advanced status (lower rank number)
+        if (STATUS_RANK[status] < STATUS_RANK[existing.canonicalStatus]) {
+          existing.canonicalStatus = status;
+          existing.approval_status = status;
+        }
+        if (opp.acv_amount > existing.acv_amount) {
+          existing.acv_amount = opp.acv_amount;
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [q4OppsRaw]);
+
+  // Approval Status Funnel / Horizontal Bar Chart Data (Q4 FY26 Only)
   const { statusData, totalQ4Acv } = useMemo(() => {
-    const totalAcv = q4TodayOpps.reduce((s, o) => s + o.acv_amount, 0);
+    const totalAcv = uniqueQ4Opps.reduce((s, o) => s + o.acv_amount, 0);
 
-    const data = approvalStatuses.map(st => {
-      const items = q4TodayOpps.filter(o => getNormalizedStatus(o.approval_status) === st);
+    const data = FIXED_STATUSES.map(st => {
+      const items = uniqueQ4Opps.filter(o => o.canonicalStatus === st);
       const amount = items.reduce((s, o) => s + o.acv_amount, 0);
       const pct = totalAcv > 0 ? (amount / totalAcv) * 100 : 0;
       return {
@@ -85,19 +565,19 @@ export const ApprovalsPage: React.FC = () => {
         rawAmount: amount,
         count: items.length,
         pct: pct.toFixed(1),
-        color: statusColors[st] || '#64748B',
+        color: STATUS_COLORS[st] || '#64748B',
       };
     });
 
     return { statusData: data, totalQ4Acv: totalAcv };
-  }, [q4TodayOpps]);
+  }, [uniqueQ4Opps]);
 
-  // 2. Split Q4 Opportunities by Forecast ACV Amount (> 100K vs < 100K)
+  // Split unique Q4 Opportunities into Table 1 (>= 100K) and Table 2 (< 100K)
   const { oppsGreater100k, oppsLess100k } = useMemo(() => {
-    const greater: SharedOpportunity[] = [];
-    const less: SharedOpportunity[] = [];
+    const greater: ProcessedOpportunity[] = [];
+    const less: ProcessedOpportunity[] = [];
 
-    q4TodayOpps.forEach(opp => {
+    uniqueQ4Opps.forEach(opp => {
       if (opp.acv_amount >= 100000) {
         greater.push(opp);
       } else {
@@ -105,179 +585,11 @@ export const ApprovalsPage: React.FC = () => {
       }
     });
 
-    // Sort by ACV descending
     greater.sort((a, b) => b.acv_amount - a.acv_amount);
     less.sort((a, b) => b.acv_amount - a.acv_amount);
 
     return { oppsGreater100k: greater, oppsLess100k: less };
-  }, [q4TodayOpps]);
-
-  // Grouping helper function: groups an array of opps by the 5 approval statuses
-  const groupOppsByApprovalStatus = (opps: SharedOpportunity[]) => {
-    const groups: Record<typeof approvalStatuses[number], SharedOpportunity[]> = {
-      Approved: [],
-      'Approved - 2nd': [],
-      'Pending-Approval': [],
-      Blank: [],
-      Rejected: [],
-    };
-
-    opps.forEach(opp => {
-      const st = getNormalizedStatus(opp.approval_status);
-      groups[st].push(opp);
-    });
-
-    return groups;
-  };
-
-  const greaterGrouped = useMemo(() => groupOppsByApprovalStatus(oppsGreater100k), [oppsGreater100k]);
-  const lessGrouped = useMemo(() => groupOppsByApprovalStatus(oppsLess100k), [oppsLess100k]);
-
-  // Total summary for Part 1 (> 100K)
-  const greaterTotalAcv = useMemo(() => oppsGreater100k.reduce((s, o) => s + o.acv_amount, 0), [oppsGreater100k]);
-  // Total summary for Part 2 (< 100K)
-  const lessTotalAcv = useMemo(() => oppsLess100k.reduce((s, o) => s + o.acv_amount, 0), [oppsLess100k]);
-
-  // Render function for opportunity table row
-  const renderOppRow = (opp: SharedOpportunity) => (
-    <tr
-      key={opp.opportunity_id}
-      onClick={() => setSelectedOppId(opp.opportunity_id)}
-      className="hover:bg-blue-50/70 transition-colors cursor-pointer group"
-    >
-      <td className="py-3 px-4 text-left">
-        <div className="font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">
-          {opp.opportunity_name}
-        </div>
-        <div className="text-[10.5px] text-slate-400 font-mono">
-          {opp.opportunity_id} &bull; {opp.account_name}
-        </div>
-      </td>
-      <td className="py-3 px-4 text-left font-semibold text-slate-800">
-        {opp.region}
-      </td>
-      <td className="py-3 px-4 text-left font-medium text-slate-600">
-        {opp.business_unit}
-      </td>
-      <td className="py-3 px-4 text-center">
-        <Badge variant={
-          opp.forecast_category === 'Closed' ? 'closed' :
-          opp.forecast_category === 'Commit' ? 'commit' :
-          opp.forecast_category === 'Best Case' ? 'bestcase' : 'pipeline'
-        }>
-          {opp.forecast_category}
-        </Badge>
-      </td>
-      <td className="py-3 px-4 text-right font-black font-mono text-slate-900 text-sm">
-        {formatCurrencyM(opp.acv_amount)}
-      </td>
-      <td className="py-3 px-4 text-center">
-        <button className="px-2.5 py-1 bg-slate-100 group-hover:bg-blue-600 text-slate-700 group-hover:text-white rounded-lg text-[11px] font-bold transition-all inline-flex items-center gap-1">
-          <span>Details</span>
-          <ExternalLink className="h-3 w-3" />
-        </button>
-      </td>
-    </tr>
-  );
-
-  // Render component for each Part (Grouped by Approval Status)
-  const renderOpportunityTablePart = (
-    partTitle: string,
-    partSubtitle: string,
-    groupedData: Record<typeof approvalStatuses[number], SharedOpportunity[]>,
-    totalCount: number,
-    totalAcv: number,
-    isGreater: boolean
-  ) => {
-    return (
-      <div className={`bg-white p-6 rounded-3xl border-2 ${isGreater ? 'border-blue-200 shadow-sm' : 'border-slate-200 shadow-xs'} space-y-6`}>
-        
-        {/* Top Header with Count and Total ACV */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <DollarSign className={`h-5 w-5 ${isGreater ? 'text-blue-600' : 'text-slate-600'}`} />
-              <h2 className="text-base font-black text-slate-900 tracking-tight">
-                {partTitle}
-              </h2>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">{partSubtitle}</p>
-          </div>
-
-          {/* Count and Total Badges */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="bg-slate-100 px-3.5 py-1.5 rounded-2xl border border-slate-200 text-slate-900 flex items-center gap-2">
-              <span className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Total Count:</span>
-              <span className="font-mono font-black text-xs">{totalCount} Deals</span>
-            </div>
-
-            <div className={`px-4 py-1.5 rounded-2xl text-white font-mono font-black text-sm shadow-2xs flex items-center gap-2 ${
-              isGreater ? 'bg-blue-600' : 'bg-slate-800'
-            }`}>
-              <span className="text-[10.5px] font-extrabold text-blue-200 uppercase tracking-wider font-sans">Total ACV:</span>
-              <span>{formatCurrencyM(totalAcv)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Grouped by 5 Approval Statuses */}
-        <div className="space-y-6">
-          {approvalStatuses.map(status => {
-            const oppsInStatus = groupedData[status] || [];
-            const statusAcv = oppsInStatus.reduce((s, o) => s + o.acv_amount, 0);
-
-            return (
-              <div key={status} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50 space-y-0">
-                
-                {/* Status Group Banner Header */}
-                <div className="px-5 py-3 bg-white border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: statusColors[status] || '#64748B' }} />
-                    <span className="text-xs font-black text-slate-900 tracking-wide">
-                      {status}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[10.5px] font-bold">
-                      {oppsInStatus.length} {oppsInStatus.length === 1 ? 'deal' : 'deals'}
-                    </span>
-                  </div>
-
-                  <div className="font-mono font-black text-xs text-slate-900">
-                    {formatCurrencyM(statusAcv)}
-                  </div>
-                </div>
-
-                {/* Status Table listing opportunities */}
-                {oppsInStatus.length === 0 ? (
-                  <div className="py-4 text-center text-slate-400 text-xs font-medium">
-                    No Q4 FY26 opportunities in <strong className="font-bold text-slate-600">{status}</strong> status for this tier.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto bg-white">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-black text-[10.5px] uppercase tracking-wider">
-                          <th className="py-2.5 px-4">Opportunity &amp; Account</th>
-                          <th className="py-2.5 px-4">Region</th>
-                          <th className="py-2.5 px-4">Business Unit</th>
-                          <th className="py-2.5 px-4 text-center">Forecast Category</th>
-                          <th className="py-2.5 px-4 text-right">ACV Amount</th>
-                          <th className="py-2.5 px-4 text-center">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {oppsInStatus.map(renderOppRow)}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-      </div>
-    );
-  };
+  }, [uniqueQ4Opps]);
 
   return (
     <div className="space-y-8 pb-20 bg-slate-50 min-h-screen text-slate-900">
@@ -343,7 +655,7 @@ export const ApprovalsPage: React.FC = () => {
               <p className="text-xs text-slate-500">Q4 ACV volume by approval status stage</p>
             </div>
             <span className="text-xs font-mono font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-              {q4TodayOpps.length} Q4 Contracts
+              {uniqueQ4Opps.length} Unique Q4 Contracts
             </span>
           </div>
 
@@ -355,7 +667,7 @@ export const ApprovalsPage: React.FC = () => {
                 margin={{ top: 10, right: 30, left: 40, bottom: 5 }}
               >
                 <XAxis type="number" tick={{ fontSize: 11, fill: '#475569' }} />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fontWeight: 'bold', fill: '#1E293B' }} width={110} />
+                <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fontWeight: 'bold', fill: '#1E293B' }} width={120} />
                 <Tooltip formatter={(value: any) => [`$${Number(value).toFixed(2)}M`, 'ACV Amount']} />
                 <Bar dataKey="amount" radius={[0, 8, 8, 0]}>
                   {statusData.map((entry, index) => (
@@ -419,25 +731,23 @@ export const ApprovalsPage: React.FC = () => {
 
       </div>
 
-      {/* SECTION 2: PART 1 - Opportunities greater than 100K (Grouped by Approval Status) */}
-      {renderOpportunityTablePart(
-        'Opportunities greater than 100K',
-        'Q4 FY26 Contracts with Forecast ACV Amount >= $100,000 grouped by Approval Status',
-        greaterGrouped,
-        oppsGreater100k.length,
-        greaterTotalAcv,
-        true
-      )}
+      {/* TABLE 1: Opportunities greater than $100K */}
+      <OpportunityTableSection
+        title="Opportunities greater than $100K"
+        subtitle="Q4 FY26 Contracts with Forecast ACV Amount >= $100,000"
+        opps={oppsGreater100k}
+        isGreater={true}
+        onSelectOpp={setSelectedOppId}
+      />
 
-      {/* SECTION 3: PART 2 - Opportunities less than 100K (Grouped by Approval Status) */}
-      {renderOpportunityTablePart(
-        'Opportunities less than 100K',
-        'Q4 FY26 Contracts with Forecast ACV Amount < $100,000 grouped by Approval Status',
-        lessGrouped,
-        oppsLess100k.length,
-        lessTotalAcv,
-        false
-      )}
+      {/* TABLE 2: Opportunities less than $100K */}
+      <OpportunityTableSection
+        title="Opportunities less than $100K"
+        subtitle="Q4 FY26 Contracts with Forecast ACV Amount < $100,000"
+        opps={oppsLess100k}
+        isGreater={false}
+        onSelectOpp={setSelectedOppId}
+      />
 
       {/* Slide-over Opportunity Drawer */}
       <OpportunityDrawer
@@ -450,3 +760,4 @@ export const ApprovalsPage: React.FC = () => {
 };
 
 export default ApprovalsPage;
+
