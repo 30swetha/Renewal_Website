@@ -58,22 +58,22 @@ const STATUS_COLORS: Record<CanonicalStatus, string> = {
 const matchCanonicalStatus = (rawStatus?: string | null): CanonicalStatus => {
   if (!rawStatus) return 'Not yet proposed';
   const s = rawStatus.trim().toLowerCase();
-  if (!s || s === 'blank' || s === 'none' || s === 'yet to be proposed' || s === 'not yet proposed') {
+  if (!s || s === 'blank' || s === 'none' || s === 'yet to be proposed' || s === 'not yet proposed' || s === 'not proposed') {
     return 'Not yet proposed';
   }
   if (s.includes('2nd') || s.includes('approved - 2nd') || s.includes('approved-2nd') || s.includes('second')) {
     return 'Approved - 2nd';
   }
-  if (s === 'approved' || s === 'approval approved') {
+  if (s.includes('approved') || s.includes('approval approved') || s.includes('1st')) {
     return 'Approved';
   }
   if (s.includes('pending') || s.includes('in review') || s.includes('awaiting')) {
     return 'Pending-Approval';
   }
-  if (s.includes('reject') || s.includes('denied') || s.includes('other')) {
+  if (s.includes('reject') || s.includes('denied') || s.includes('declined')) {
     return 'Rejected';
   }
-  return 'Rejected';
+  return 'Not yet proposed';
 };
 
 interface ProcessedOpportunity extends SharedOpportunity {
@@ -517,32 +517,12 @@ export const ApprovalsPage: React.FC = () => {
     return <EmptyState title="Approval Funnel & Governance Analysis" />;
   }
 
-  // Scope: Q4 Fiscal 2026 ONLY ([Fiscal Period] = Q4 2026 / Q4-2026)
-  const q4OppsRaw = useMemo(() => {
-    return rawTodayOpps.filter(o => {
-      const rawPeriod = String(
-        o.fiscal_period || 
-        (o.json_data && (o.json_data['Fiscal Period'] || o.json_data['Service Expiry Period'])) || 
-        o.expiry_quarter || 
-        ''
-      ).trim();
-
-      return (
-        rawPeriod === 'Q4 2026' || 
-        rawPeriod === 'Q4-2026' || 
-        rawPeriod === 'Q4 FY26' ||
-        rawPeriod.includes('Q4') ||
-        o.expiry_quarter.includes('Q4')
-      );
-    });
-  }, [rawTodayOpps]);
-
   // Deduplicate by unique Opportunity ID and select most advanced status per precedence rules
   const uniqueQ4Opps = useMemo(() => {
     const map = new Map<string, ProcessedOpportunity>();
     const duplicates: string[] = [];
 
-    q4OppsRaw.forEach(opp => {
+    rawTodayOpps.forEach(opp => {
       const uniqueId = String(
         opp.opportunity_id || 
         opp.json_data?.['Opportunity ID 18 Digit'] || 
@@ -551,7 +531,7 @@ export const ApprovalsPage: React.FC = () => {
       ).trim();
       if (!uniqueId) return;
 
-      const rawStatus = opp.approval_status || opp.json_data?.['Approval Status'] || opp.json_data?.['Status'];
+      const rawStatus = opp.approval_status || opp.json_data?.['Approval Status'] || opp.json_data?.['Opportunity Approval Status'] || opp.json_data?.['Status'];
       const status = matchCanonicalStatus(rawStatus);
 
       if (!map.has(uniqueId)) {
@@ -568,12 +548,11 @@ export const ApprovalsPage: React.FC = () => {
           existing.canonicalStatus = status;
           existing.approval_status = status;
         }
-        // DELETED replacing acv_amount with larger value per prompt rule 4
       }
     });
 
     return { uniqueOpps: Array.from(map.values()), duplicateIds: Array.from(new Set(duplicates)) };
-  }, [q4OppsRaw]);
+  }, [rawTodayOpps]);
 
   // Approval Status Funnel / Horizontal Bar Chart Data (Q4 FY26 Only)
   const { statusData, totalQ4Acv } = useMemo(() => {
