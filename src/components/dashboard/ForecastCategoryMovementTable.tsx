@@ -114,9 +114,9 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
 
     // Define Positive Movement Rows
     const posRows = [
-      { id: 'pipeline_to_bestcase', label: 'Pipeline to Best Case', fromCat: 'Pipeline', toCat: 'Best Case' },
-      { id: 'bestcase_to_commit', label: 'Best Case to Commit', fromCat: 'Best Case', toCat: 'Commit' },
       { id: 'commit_to_closed', label: 'Commit to Closed', fromCat: 'Commit', toCat: 'Closed' },
+      { id: 'bestcase_to_commit', label: 'Best Case to Commit', fromCat: 'Best Case', toCat: 'Commit' },
+      { id: 'pipeline_to_bestcase', label: 'Pipeline to Best Case', fromCat: 'Pipeline', toCat: 'Best Case' },
     ];
 
     // Define Negative Movement Rows

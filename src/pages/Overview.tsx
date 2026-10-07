@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { 
-  Sparkles, 
   CheckCircle2, 
   AlertTriangle, 
   ArrowUpRight, 
@@ -13,7 +12,6 @@ import {
 } from 'lucide-react';
 import { formatCurrencyM, useSharedDatasets, type SharedOpportunity } from '../lib/sharedDataLayer';
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
-import { renderPill } from '../lib/narrativeHelpers';
 
 // Fixed 6 regions in exact required order
 export const FIXED_REGIONS = [
@@ -255,91 +253,7 @@ export const OverviewPage: React.FC = () => {
   return (
     <div className="space-y-8 pb-20 bg-slate-50 min-h-screen text-slate-900">
       
-      {/* 1. Dynamic Executive Synthesis Briefing Card */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-6">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2 text-blue-700 font-extrabold text-xs uppercase tracking-wider">
-            <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
-            <span>Today's Executive Synthesis &bull; Q4 FY26 Overview</span>
-          </div>
-          <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
-            Live Excel Narrative
-          </span>
-        </div>
 
-        {/* 1) Headline (largest text) */}
-        <div className="flex items-baseline gap-3">
-          <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Q4 Renewal ACV:</span>
-          <span className="text-3xl sm:text-4xl font-black font-mono text-slate-900 tracking-tight">
-            {formatCurrencyM(totalQ4AcvToday)}
-          </span>
-        </div>
-
-        {/* 2) "Forecast" row of four compact blocks side by side */}
-        <div className="space-y-2">
-          <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">Forecast Breakdown:</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* Closed */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
-              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Closed</div>
-              <div className="text-xl font-black font-mono text-slate-900">{formatCurrencyM(closedMetrics.todayAcv)}</div>
-              <div className="flex flex-col gap-1 pt-1">
-                {renderPill(closedMetrics.todayAcv - closedMetrics.yesterdayAcv, 'vs yesterday')}
-                {renderPill(closedMetrics.todayAcv - closedMetrics.lastweekAcv, 'vs last week')}
-              </div>
-            </div>
-
-            {/* Commit */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
-              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Commit</div>
-              <div className="text-xl font-black font-mono text-slate-900">{formatCurrencyM(commitMetrics.todayAcv)}</div>
-              <div className="flex flex-col gap-1 pt-1">
-                {renderPill(commitMetrics.todayAcv - commitMetrics.yesterdayAcv, 'vs yesterday')}
-                {renderPill(commitMetrics.todayAcv - commitMetrics.lastweekAcv, 'vs last week')}
-              </div>
-            </div>
-
-            {/* Best Case */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
-              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Best Case</div>
-              <div className="text-xl font-black font-mono text-slate-900">{formatCurrencyM(bestCaseMetrics.todayAcv)}</div>
-              <div className="flex flex-col gap-1 pt-1">
-                {renderPill(bestCaseMetrics.todayAcv - bestCaseMetrics.yesterdayAcv, 'vs yesterday')}
-                {renderPill(bestCaseMetrics.todayAcv - bestCaseMetrics.lastweekAcv, 'vs last week')}
-              </div>
-            </div>
-
-            {/* Pipeline */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
-              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Pipeline</div>
-              <div className="text-xl font-black font-mono text-slate-900">{formatCurrencyM(pipelineMetrics.todayAcv)}</div>
-              <div className="flex flex-col gap-1 pt-1">
-                {renderPill(pipelineMetrics.todayAcv - pipelineMetrics.yesterdayAcv, 'vs yesterday')}
-                {renderPill(pipelineMetrics.todayAcv - pipelineMetrics.lastweekAcv, 'vs last week')}
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* 3) Slippage line */}
-        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-500">Slippage to 2027:</span>
-            <span className="text-2xl font-black font-mono text-slate-900">{formatCurrencyM(slippedAcvToday)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {renderPill(slippedAcvToday - slippedAcvYesterday, 'vs yesterday')}
-            {renderPill(slippedAcvToday - slippedAcvLastweek, 'vs last week')}
-          </div>
-        </div>
-
-
-
-      </div>
 
       {/* Warning banner if an unmapped region string exists */}
       {hasOtherRegion && (

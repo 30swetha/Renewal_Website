@@ -157,9 +157,9 @@ export const RegionsPage: React.FC = () => {
     baselineOpps.forEach(o => baselineMap.set(o.opportunity_id, o));
 
     const posRows = [
-      { id: 'pipeline_to_bestcase', label: 'Pipeline to Best Case', fromCat: 'Pipeline', toCat: 'Best Case', isPos: true },
-      { id: 'bestcase_to_commit', label: 'Best Case to Commit', fromCat: 'Best Case', toCat: 'Commit', isPos: true },
       { id: 'commit_to_closed', label: 'Commit to Closed', fromCat: 'Commit', toCat: 'Closed', isPos: true },
+      { id: 'bestcase_to_commit', label: 'Best Case to Commit', fromCat: 'Best Case', toCat: 'Commit', isPos: true },
+      { id: 'pipeline_to_bestcase', label: 'Pipeline to Best Case', fromCat: 'Pipeline', toCat: 'Best Case', isPos: true },
     ];
 
     const negRows = [
