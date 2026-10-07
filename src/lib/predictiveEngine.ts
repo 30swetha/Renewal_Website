@@ -128,9 +128,7 @@ export function calculateDealRiskScore(opp: OpportunitySnapshotRecord): DealRisk
  * Get all deal risk scores for active date snapshot
  */
 export function getAllDealRiskScores(date: string = '2026-10-06'): DealRiskResult[] {
-  let opps = db.getOpportunitiesForDate(date);
-  if (opps.length === 0) opps = db.getOpportunitiesForDate('2026-10-06');
-
+  const opps = db.getOpportunitiesForDate(date);
   return opps.map(opp => calculateDealRiskScore(opp)).sort((a, b) => b.riskScore - a.riskScore);
 }
 
@@ -138,8 +136,7 @@ export function getAllDealRiskScores(date: string = '2026-10-06'): DealRiskResul
  * 2. Forecast Slippage & Expected Quarter Close Calculation
  */
 export function calculateForecastSlippage(date: string = '2026-10-06'): ForecastSlippageResult {
-  let opps = db.getOpportunitiesForDate(date);
-  if (opps.length === 0) opps = db.getOpportunitiesForDate('2026-10-06');
+  const opps = db.getOpportunitiesForDate(date);
 
   const closedAcv = opps.filter(o => o.forecast_category === 'Closed').reduce((s, o) => s + o.acv_amount, 0);
   const commitAcv = opps.filter(o => o.forecast_category === 'Commit').reduce((s, o) => s + o.acv_amount, 0);
@@ -179,7 +176,6 @@ export function getAnomalyAlerts(): { status: string; alerts: AnomalyAlert[] } {
   const snapshots = db.getSnapshots();
   const count = snapshots.length;
 
-  // We have baseline snapshots (e.g. 7 snapshots built into demo data)
   const dailyDeltas: { date: string; delta: number; oppName?: string }[] = [];
 
   for (let i = 0; i < snapshots.length - 1; i++) {
@@ -195,17 +191,11 @@ export function getAnomalyAlerts(): { status: string; alerts: AnomalyAlert[] } {
     dailyDeltas.push({ date: currDate, delta });
   }
 
-  // If dailyDeltas is less than 3, generate realistic sample anomaly items for demo
-  if (dailyDeltas.length < 3) {
-    dailyDeltas.push(
-      { date: '2026-10-06', delta: 4710000, oppName: 'Saudi Telecom 5G Core Renewal' },
-      { date: '2026-10-05', delta: -710000, oppName: 'Telefónica Spain Expansion' },
-      { date: '2026-10-04', delta: 1250000, oppName: 'Vodafone UK Multi-Year' },
-      { date: '2026-10-03', delta: 300000, oppName: 'Airtel India Security' },
-      { date: '2026-10-02', delta: -1400000, oppName: 'Singtel Roaming Gateway' },
-      { date: '2026-10-01', delta: 890000, oppName: 'MTN South Africa' },
-      { date: '2026-09-30', delta: 150000, oppName: 'Verizon Wireless Core' }
-    );
+  if (dailyDeltas.length === 0) {
+    return {
+      status: 'No snapshot data available.',
+      alerts: [],
+    };
   }
 
   // Compute Mean (μ) and Std Dev (σ)
@@ -242,8 +232,7 @@ export function getAnomalyAlerts(): { status: string; alerts: AnomalyAlert[] } {
  * 4. Renewal-at-Risk List
  */
 export function getRenewalsAtRisk(date: string = '2026-10-06'): OpportunitySnapshotRecord[] {
-  let opps = db.getOpportunitiesForDate(date);
-  if (opps.length === 0) opps = db.getOpportunitiesForDate('2026-10-06');
+  const opps = db.getOpportunitiesForDate(date);
 
   return opps.filter(o => {
     const isPending = o.approval_status.includes('Pending') || o.approval_status.includes('Rejected');

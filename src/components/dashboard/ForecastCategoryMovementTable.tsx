@@ -85,6 +85,10 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
 
   const { todayOpps: rawToday, yesterdayOpps: rawYesterday, lastweekOpps: rawLastweek } = useSharedDatasets();
 
+  if (rawToday.length === 0) {
+    return null;
+  }
+
   // Scope to Q4 FY26 only
   const q4Today = useMemo(() => getQ4OnlyOpps(rawToday), [rawToday]);
   const q4Yesterday = useMemo(() => getQ4OnlyOpps(rawYesterday), [rawYesterday]);

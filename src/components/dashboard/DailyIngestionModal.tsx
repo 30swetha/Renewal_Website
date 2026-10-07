@@ -179,6 +179,15 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
     if (onSuccess) onSuccess();
   };
 
+  const handleClearAllData = () => {
+    db.clearAll();
+    window.dispatchEvent(new Event('dataset-updated'));
+    setFiles([]);
+    setIngestResult(null);
+    setSuccessBanner('All data wiped. Entire application is now clean and empty.');
+    if (onSuccess) onSuccess();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -383,15 +392,28 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
           )}
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={handleClearData}
-              className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
-            >
-              <Trash2 className="h-3.5 w-3.5 text-red-600" />
-              <span>Clear data for {selectedDate}</span>
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleClearData}
+                className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                title="Clear data for this date only"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                <span>Clear Date Data</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearAllData}
+                className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                title="Wipe all data from memory and storage"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Clean All Data</span>
+              </button>
+            </div>
 
             <div className="flex items-center gap-3">
               <button

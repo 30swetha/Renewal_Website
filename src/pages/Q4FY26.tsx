@@ -10,6 +10,7 @@ import { Badge } from '../components/ui/Badge';
 import { DataTable, type ColumnDef } from '../components/ui/DataTable';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
+import { EmptyState } from '../components/ui/EmptyState';
 
 export const Q4FY26Page: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
@@ -22,6 +23,10 @@ export const Q4FY26Page: React.FC = () => {
 
   // Raw dataset
   const rawDataset = useMemo(() => getSharedDataset(), [refreshKey]);
+
+  if (rawDataset.length === 0) {
+    return <EmptyState title="Q4 Fiscal 2026 Executive Analysis" />;
+  }
 
 
   // Filter raw dataset with GlobalFilterBar

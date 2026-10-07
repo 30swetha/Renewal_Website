@@ -222,7 +222,14 @@ class DatabaseStore {
     this.changeLogs.clear();
     this.dailySummaries.clear();
     this.namedSheets.clear();
-    this.saveToLocalStorage();
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
+    } catch (e) {
+      console.warn('Storage clear warning:', e);
+    }
   }
 }
 
