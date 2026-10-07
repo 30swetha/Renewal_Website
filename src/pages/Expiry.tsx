@@ -4,17 +4,18 @@ import {
   AlertTriangle, 
   TrendingUp, 
   TrendingDown, 
+  Minus,
   Layers,
-  X
+  X,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
-import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpportunity } from '../lib/sharedDataLayer';
-import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
+import { useSharedDatasets, formatCurrencyM, type SharedOpportunity } from '../lib/sharedDataLayer';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { Badge } from '../components/ui/Badge';
 
 export const ExpiryPage: React.FC = () => {
-  const [filters, setFilters] = useState<GlobalFilterState>(INITIAL_FILTERS);
   const [metricMode, setMetricMode] = useState<'amount' | 'count'>('amount');
   const [activeCellModal, setActiveCellModal] = useState<{
     rowKey: string;
@@ -24,14 +25,8 @@ export const ExpiryPage: React.FC = () => {
   } | null>(null);
   const [drawerOppId, setDrawerOppId] = useState<string | null>(null);
 
-  const refreshKey = useDatasetRefresh();
-
-  // Shared dataset for Today (latest) and Yesterday
-  const rawTodayOpps = useMemo(() => getSharedDataset(), [refreshKey]);
-  const rawYesterdayOpps = useMemo(() => getSharedDataset('yesterday'), [refreshKey]);
-
-  const todayOpps = useMemo(() => filterOpportunities(rawTodayOpps, filters), [rawTodayOpps, filters]);
-  const yesterdayOpps = useMemo(() => filterOpportunities(rawYesterdayOpps, filters), [rawYesterdayOpps, filters]);
+  // Load Today, Yesterday, and Last Week datasets reactively
+  const { todayOpps, yesterdayOpps, lastweekOpps } = useSharedDatasets();
 
   // Separate row definitions for 2026 and 2027
   const rows2026 = ['Q1-2026', 'Q2-2026', 'Q3-2026', 'Q4-2026'];
@@ -77,6 +72,52 @@ export const ExpiryPage: React.FC = () => {
 
     return 'Q4-2026';
   };
+
+  // 1. Calculate "Grand Total 2026" (Vertical total of Closed, Commit, Best Case, Pipeline for Q1 to Q4 2026)
+  const grandTotal2026 = useMemo(() => {
+    const is2026Opp = (o: SharedOpportunity) => rows2026.includes(getOppRowKey(o));
+
+    const tOpps = todayOpps.filter(is2026Opp);
+    const yOpps = yesterdayOpps.filter(is2026Opp);
+    const lwOpps = lastweekOpps.filter(is2026Opp);
+
+    const tAcv = tOpps.reduce((s, o) => s + o.acv_amount, 0);
+    const yAcv = yOpps.reduce((s, o) => s + o.acv_amount, 0);
+    const lwAcv = lwOpps.reduce((s, o) => s + o.acv_amount, 0);
+
+    return {
+      todayAcv: tAcv,
+      todayCount: tOpps.length,
+      yesterdayAcv: yAcv,
+      yesterdayCount: yOpps.length,
+      lastweekAcv: lwAcv,
+      lastweekCount: lwOpps.length,
+    };
+  }, [todayOpps, yesterdayOpps, lastweekOpps]);
+
+  // 2. Calculate "2027 Slippage" (Single total of all 2027 amounts EXCLUDING Closed: Commit, Best Case, Pipeline only)
+  const slippage2027 = useMemo(() => {
+    const is2027NonClosed = (o: SharedOpportunity) => 
+      (rows2027.includes(getOppRowKey(o)) || o.is_slipped_to_2027 || o.close_date.startsWith('2027')) && 
+      o.forecast_category !== 'Closed';
+
+    const tOpps = todayOpps.filter(is2027NonClosed);
+    const yOpps = yesterdayOpps.filter(is2027NonClosed);
+    const lwOpps = lastweekOpps.filter(is2027NonClosed);
+
+    const tAcv = tOpps.reduce((s, o) => s + o.acv_amount, 0);
+    const yAcv = yOpps.reduce((s, o) => s + o.acv_amount, 0);
+    const lwAcv = lwOpps.reduce((s, o) => s + o.acv_amount, 0);
+
+    return {
+      todayAcv: tAcv,
+      todayCount: tOpps.length,
+      yesterdayAcv: yAcv,
+      yesterdayCount: yOpps.length,
+      lastweekAcv: lwAcv,
+      lastweekCount: lwOpps.length,
+    };
+  }, [todayOpps, yesterdayOpps, lastweekOpps]);
 
   // Aggregated cell metrics for Today and Yesterday
   const cellData = useMemo(() => {
@@ -144,26 +185,36 @@ export const ExpiryPage: React.FC = () => {
     };
   };
 
-  // Aggregated slippage metrics for all 2027 quarters
-  const slippageMetrics = useMemo(() => {
-    const opps2027 = todayOpps.filter(o => getOppRowKey(o).includes('2027'));
-    const yesterday2027 = yesterdayOpps.filter(o => getOppRowKey(o).includes('2027'));
+  // Helper render for comparison delta badges
+  const renderDeltaBadge = (todayVal: number, prevVal: number, isCurrency: boolean = true) => {
+    if (prevVal === undefined || isNaN(prevVal)) {
+      return <span className="text-[10.5px] font-mono text-slate-400 font-bold">N/A</span>;
+    }
 
-    const totalAcv = opps2027.reduce((s, o) => s + o.acv_amount, 0);
-    const yesterdayAcv = yesterday2027.reduce((s, o) => s + o.acv_amount, 0);
-    const acvDelta = totalAcv - yesterdayAcv;
+    const diff = todayVal - prevVal;
+    const isUp = diff > 0;
+    const isDown = diff < 0;
 
-    const commitOpps = opps2027.filter(o => o.forecast_category === 'Commit');
-    const commitAcv = commitOpps.reduce((s, o) => s + o.acv_amount, 0);
+    let colorClass = 'text-slate-600 bg-slate-100 border-slate-200';
+    let Icon = Minus;
 
-    return {
-      totalAcv,
-      totalCount: opps2027.length,
-      acvDelta,
-      commitAcv,
-      commitCount: commitOpps.length,
-    };
-  }, [todayOpps, yesterdayOpps]);
+    if (isUp) {
+      colorClass = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+      Icon = TrendingUp;
+    } else if (isDown) {
+      colorClass = 'text-red-700 bg-red-50 border-red-200';
+      Icon = TrendingDown;
+    }
+
+    const diffStr = isCurrency ? formatCurrencyM(diff) : `${diff >= 0 ? '+' : ''}${diff}`;
+
+    return (
+      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-black border ${colorClass}`}>
+        <Icon className="h-3.5 w-3.5 shrink-0 stroke-[2.5]" />
+        <span>{isUp ? '+' : ''}{diffStr}</span>
+      </span>
+    );
+  };
 
   // Helper render function for Heatmap Table
   const renderHeatmapTable = (tableRows: string[], title: string, subtitle: string, is2027Table: boolean = false) => {
@@ -317,31 +368,25 @@ export const ExpiryPage: React.FC = () => {
                 );
               })}
             </tbody>
+            
+            {/* Table Footer for 2026 showing Grand Total 2026 */}
+            {!is2027Table && (
+              <tfoot>
+                <tr className="bg-blue-100/80 border-t-2 border-blue-300 font-black text-blue-950">
+                  <td className="py-4 px-4 text-left uppercase tracking-wider text-xs">
+                    Grand Total 2026
+                  </td>
+                  <td colSpan={4} className="py-4 px-4 text-left text-xs font-medium text-blue-900">
+                    Sum of Q1 to Q4 2026 across Closed, Commit, Best Case &amp; Pipeline
+                  </td>
+                  <td className="py-4 px-4 text-center font-mono font-black text-sm text-blue-950 bg-blue-200/70">
+                    {metricMode === 'amount' ? formatCurrencyM(grandTotal2026.todayAcv) : `${grandTotal2026.todayCount} deals`}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
-
-        {/* 2027 Slippage Note if rendered inside 2027 Table */}
-        {is2027Table && (
-          <div className="bg-amber-50/80 border-t-2 border-amber-300 p-4 text-left rounded-b-2xl">
-            <div className="flex items-start gap-2.5 text-xs text-amber-950">
-              <AlertTriangle className="h-4.5 w-4.5 text-amber-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-bold">
-                  <strong className="font-black text-amber-900 uppercase tracking-wide">Summary Note for 2027 Quarters:</strong>{' '}
-                  Total 2027 ACV across Q1–Q4 2027 stands at <strong className="font-black text-slate-900 text-sm">{formatCurrencyM(slippageMetrics.totalAcv)}</strong> across <strong className="font-extrabold text-slate-900">{slippageMetrics.totalCount} opportunities</strong>
-                  {slippageMetrics.acvDelta !== 0 && (
-                    <span className={`ml-1 font-mono font-bold ${slippageMetrics.acvDelta > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                      ({slippageMetrics.acvDelta > 0 ? '+' : ''}{formatCurrencyM(slippageMetrics.acvDelta)} vs yesterday)
-                    </span>
-                  )}.
-                </p>
-                <p className="text-[11.5px] text-amber-800">
-                  Includes <strong className="font-black text-blue-700">{formatCurrencyM(slippageMetrics.commitAcv)}</strong> in <strong className="font-bold">Commit</strong> forecast category across {slippageMetrics.commitCount} contracts with close dates in 2027.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
       </div>
     );
@@ -376,12 +421,98 @@ export const ExpiryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Global Filter Bar */}
-      <GlobalFilterBar
-        filters={filters}
-        onChange={setFilters}
-        dataset={rawTodayOpps}
-      />
+      {/* EXECUTIVE SUMMARY LINES: (1) Grand Total 2026 & (2) 2027 Slippage */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        {/* Line 1: Grand Total 2026 */}
+        <div className="bg-white p-6 rounded-3xl border-2 border-blue-200 shadow-sm flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-blue-900 font-black text-xs uppercase tracking-wider">
+              <Layers className="h-4 w-4 text-blue-600" />
+              <span>Grand Total 2026</span>
+            </div>
+            <span className="font-mono text-xs bg-blue-50 text-blue-800 border border-blue-200 px-2.5 py-0.5 rounded-full font-extrabold">
+              {grandTotal2026.todayCount} Deals
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3">
+            <div>
+              <div className="text-3xl sm:text-4xl font-black text-blue-950 font-mono tracking-tight">
+                {metricMode === 'amount' ? formatCurrencyM(grandTotal2026.todayAcv) : `${grandTotal2026.todayCount} deals`}
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                Vertical total of Closed, Commit, Best Case &amp; Pipeline for Q1 to Q4 2026
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200 shrink-0">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase block">vs Yesterday</span>
+                {renderDeltaBadge(
+                  metricMode === 'amount' ? grandTotal2026.todayAcv : grandTotal2026.todayCount,
+                  metricMode === 'amount' ? grandTotal2026.yesterdayAcv : grandTotal2026.yesterdayCount,
+                  metricMode === 'amount'
+                )}
+              </div>
+              <div className="h-7 w-px bg-slate-200" />
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase block">vs Last Week</span>
+                {renderDeltaBadge(
+                  metricMode === 'amount' ? grandTotal2026.todayAcv : grandTotal2026.todayCount,
+                  metricMode === 'amount' ? grandTotal2026.lastweekAcv : grandTotal2026.lastweekCount,
+                  metricMode === 'amount'
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Line 2: 2027 Slippage */}
+        <div className="bg-white p-6 rounded-3xl border-2 border-amber-300 shadow-sm flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-950 font-black text-xs uppercase tracking-wider">
+              <Clock className="h-4 w-4 text-amber-600" />
+              <span>2027 Slippage</span>
+            </div>
+            <span className="font-mono text-xs bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full font-extrabold">
+              Excluding Closed
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3">
+            <div>
+              <div className="text-3xl sm:text-4xl font-black text-amber-950 font-mono tracking-tight">
+                {metricMode === 'amount' ? formatCurrencyM(slippage2027.todayAcv) : `${slippage2027.todayCount} deals`}
+              </div>
+              <p className="text-xs text-amber-800/80 font-medium mt-1">
+                Single total of 2027 pipeline (Commit, Best Case, Pipeline only - excluding Closed)
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 bg-amber-50/70 p-2.5 rounded-2xl border border-amber-200 shrink-0">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-amber-800 uppercase block">vs Yesterday</span>
+                {renderDeltaBadge(
+                  metricMode === 'amount' ? slippage2027.todayAcv : slippage2027.todayCount,
+                  metricMode === 'amount' ? slippage2027.yesterdayAcv : slippage2027.yesterdayCount,
+                  metricMode === 'amount'
+                )}
+              </div>
+              <div className="h-7 w-px bg-amber-200" />
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-amber-800 uppercase block">vs Last Week</span>
+                {renderDeltaBadge(
+                  metricMode === 'amount' ? slippage2027.todayAcv : slippage2027.lastweekAcv,
+                  metricMode === 'amount' ? slippage2027.lastweekAcv : slippage2027.lastweekCount,
+                  metricMode === 'amount'
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
 
       {/* TABLE 1: 2026 Expiry Quarter vs Forecast Category Heatmap Grid */}
       {renderHeatmapTable(
@@ -391,7 +522,7 @@ export const ExpiryPage: React.FC = () => {
         false
       )}
 
-      {/* TABLE 2: 2027 Expiry & Slippage Heatmap Grid (Separate Table) */}
+      {/* TABLE 2: 2027 Expiry & Slippage Heatmap Grid */}
       {renderHeatmapTable(
         rows2027,
         '2027 Expiry & Slippage Heatmap Grid',
@@ -499,5 +630,3 @@ export const ExpiryPage: React.FC = () => {
 };
 
 export default ExpiryPage;
-
-
