@@ -367,22 +367,117 @@ export const ExpiryPage: React.FC = () => {
               })}
             </tbody>
             
-            {/* Table Footer for 2026 showing Grand Total 2026 */}
-            {!is2027Table && (
-              <tfoot>
-                <tr className="bg-blue-100/80 border-t-2 border-blue-300 font-black text-blue-950">
-                  <td className="py-4 px-4 text-left uppercase tracking-wider text-xs">
-                    Grand Total 2026
-                  </td>
-                  <td colSpan={4} className="py-4 px-4 text-left text-xs font-medium text-blue-900">
-                    Sum of Q1 to Q4 2026 across Closed, Commit, Best Case &amp; Pipeline
-                  </td>
-                  <td className="py-4 px-4 text-center font-mono font-black text-sm text-blue-950 bg-blue-200/70">
-                    {metricMode === 'amount' ? formatCurrencyM(grandTotal2026.todayAcv) : `${grandTotal2026.todayCount} deals`}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
+            {/* Table Footer for 2026 and 2027 showing Vertical Totals & Grand Total */}
+            {(() => {
+              const catTotals = categories.map(cat => {
+                let todayVal = 0;
+                let yesterdayVal = 0;
+                let delta = 0;
+                let todayCount = 0;
+                let yesterdayCount = 0;
+                let countDelta = 0;
+                let opps: SharedOpportunity[] = [];
+
+                tableRows.forEach(rKey => {
+                  const key = `${rKey}___${cat}`;
+                  const cell = cellData.get(key);
+                  if (cell) {
+                    todayVal += cell.todayVal;
+                    yesterdayVal += cell.yesterdayVal;
+                    delta += cell.delta;
+                    todayCount += cell.todayCount;
+                    yesterdayCount += cell.yesterdayCount;
+                    countDelta += cell.countDelta;
+                    opps = opps.concat(cell.opps);
+                  }
+                });
+
+                return {
+                  cat,
+                  todayVal,
+                  yesterdayVal,
+                  delta,
+                  todayCount,
+                  yesterdayCount,
+                  countDelta,
+                  opps: opps.sort((a, b) => b.acv_amount - a.acv_amount),
+                };
+              });
+
+              const tableGrandTotalVal = catTotals.reduce((s, c) => s + c.todayVal, 0);
+              const tableGrandTotalDelta = catTotals.reduce((s, c) => s + c.delta, 0);
+              const tableGrandTotalCount = catTotals.reduce((s, c) => s + c.todayCount, 0);
+              const tableGrandTotalCountDelta = catTotals.reduce((s, c) => s + c.countDelta, 0);
+
+              return (
+                <tfoot>
+                  <tr className={`border-t-2 font-black ${
+                    is2027Table ? 'bg-amber-100/80 border-amber-300 text-amber-950' : 'bg-blue-100/80 border-blue-300 text-blue-950'
+                  }`}>
+                    <td className="py-4 px-4 text-left uppercase tracking-wider text-xs">
+                      {is2027Table ? 'GRAND TOTAL 2027' : 'GRAND TOTAL 2026'}
+                    </td>
+                    {catTotals.map(cObj => {
+                      const cDelta = metricMode === 'amount' ? cObj.delta : cObj.countDelta;
+                      return (
+                        <td
+                          key={cObj.cat}
+                          onClick={() => cObj.todayCount > 0 && setActiveCellModal({
+                            rowKey: is2027Table ? '2027 Total' : '2026 Total',
+                            category: cObj.cat,
+                            opps: cObj.opps,
+                            totalAcv: cObj.todayVal
+                          })}
+                          className={`py-4 px-4 border border-slate-200 transition-all ${
+                            cObj.todayCount > 0 ? 'cursor-pointer hover:ring-2 hover:ring-blue-500' : ''
+                          }`}
+                        >
+                          <div className="flex flex-col items-center justify-center space-y-1">
+                            <span className="font-black text-xs sm:text-sm tracking-tight drop-shadow-xs">
+                              {metricMode === 'amount'
+                                ? formatCurrencyM(cObj.todayVal)
+                                : `${cObj.todayCount} deals`}
+                            </span>
+                            <div className="flex items-center gap-0.5">
+                              {cDelta > 0 ? (
+                                <span className="inline-flex items-center text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-500 text-white shadow-2xs font-mono">
+                                  <TrendingUp className="h-2.5 w-2.5 mr-0.5" />
+                                  +{metricMode === 'amount' ? formatCurrencyM(cDelta) : cDelta}
+                                </span>
+                              ) : cDelta < 0 ? (
+                                <span className="inline-flex items-center text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-red-500 text-white shadow-2xs font-mono">
+                                  <TrendingDown className="h-2.5 w-2.5 mr-0.5" />
+                                  {metricMode === 'amount' ? formatCurrencyM(cDelta) : cDelta}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-slate-400 font-mono">
+                                  0
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td className={`py-4 px-4 font-black text-xs sm:text-sm ${
+                      is2027Table ? 'bg-amber-200/80 text-amber-950' : 'bg-blue-200/80 text-blue-950'
+                    }`}>
+                      <div className="flex flex-col items-center justify-center space-y-0.5">
+                        <span className="font-mono text-sm sm:text-base font-black">
+                          {metricMode === 'amount' ? formatCurrencyM(tableGrandTotalVal) : `${tableGrandTotalCount} deals`}
+                        </span>
+                        <span className={`text-[10px] font-mono font-extrabold ${
+                          tableGrandTotalDelta > 0 ? 'text-emerald-700' : tableGrandTotalDelta < 0 ? 'text-red-600' : 'text-slate-400'
+                        }`}>
+                          {tableGrandTotalDelta !== 0 && (tableGrandTotalDelta > 0 ? '+' : '')}
+                          {metricMode === 'amount' ? (tableGrandTotalDelta !== 0 ? formatCurrencyM(tableGrandTotalDelta) : '') : (tableGrandTotalCountDelta !== 0 ? tableGrandTotalCountDelta : '')}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                </tfoot>
+              );
+            })()}
           </table>
         </div>
 
