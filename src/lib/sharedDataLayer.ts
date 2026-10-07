@@ -12,6 +12,116 @@ export interface SharedOpportunity extends OpportunitySnapshotRecord {
 }
 
 /**
+ * Global Header Filter State (Year, Quarter, Sales Type)
+ */
+export interface GlobalHeaderFilters {
+  year: string; // 'All', '2025', '2026', '2027', '2028'
+  quarter: string; // 'All', 'Q1', 'Q2', 'Q3', 'Q4'
+  salesType: string; // 'Renewals' or 'All'
+}
+
+let activeHeaderFilters: GlobalHeaderFilters = {
+  year: '2026',
+  quarter: 'Q4',
+  salesType: 'Renewals'
+};
+
+export function getGlobalHeaderFilters(): GlobalHeaderFilters {
+  try {
+    const saved = sessionStorage.getItem('renewiq_global_header_filters');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          year: parsed.year || '2026',
+          quarter: parsed.quarter || 'Q4',
+          salesType: parsed.salesType || 'Renewals'
+        };
+      }
+    }
+  } catch (e) {}
+  return activeHeaderFilters;
+}
+
+export function setGlobalHeaderFilters(filters: Partial<GlobalHeaderFilters>) {
+  const current = getGlobalHeaderFilters();
+  activeHeaderFilters = { ...current, ...filters };
+  try {
+    sessionStorage.setItem('renewiq_global_header_filters', JSON.stringify(activeHeaderFilters));
+  } catch (e) {}
+  window.dispatchEvent(new Event('dataset-updated'));
+}
+
+export function matchesGlobalFilters(opp: SharedOpportunity, filters?: GlobalHeaderFilters): boolean {
+  const f = filters || getGlobalHeaderFilters();
+
+  // 1. Sales Type Filter (Enforce Renewals)
+  if (f.salesType === 'Renewals') {
+    const st = String(
+      opp.json_data?.['Sales Type'] || 
+      opp.json_data?.['Type'] || 
+      opp.json_data?.['Opportunity Type'] || 
+      'Renewals'
+    ).trim().toLowerCase();
+    
+    if (st && !st.includes('renewal') && !st.includes('ren')) {
+      return false;
+    }
+  }
+
+  // Extract Fiscal Period and Dates
+  const fp = String(
+    opp.fiscal_period || 
+    opp.json_data?.['Fiscal Period'] || 
+    opp.json_data?.['Service Expiry Period'] || 
+    opp.expiry_quarter || 
+    ''
+  ).trim().toUpperCase();
+
+  const closeDate = String(opp.close_date || opp.json_data?.['Close Date'] || '');
+  const serviceEndDate = String(opp.service_end_date || opp.json_data?.['Service End Date'] || '');
+
+  // 2. Year Filter
+  if (f.year !== 'All') {
+    const y = f.year;
+    const yShort = y.substring(2); // e.g. '26'
+    const matchesFpYear = fp.includes(y) || fp.includes(yShort);
+    const matchesCloseYear = closeDate.includes(y);
+    const matchesEndYear = serviceEndDate.includes(y);
+
+    if (!matchesFpYear && !matchesCloseYear && !matchesEndYear) {
+      return false;
+    }
+  }
+
+  // 3. Quarter Filter
+  if (f.quarter !== 'All') {
+    const q = f.quarter.toUpperCase(); // e.g. 'Q4'
+    const matchesFpQ = fp.includes(q);
+
+    let matchesDateQ = false;
+    const d = closeDate || serviceEndDate;
+    if (d && d.includes('-')) {
+      const month = parseInt(d.split('-')[1] || '0', 10);
+      if (q === 'Q1' && month >= 1 && month <= 3) matchesDateQ = true;
+      if (q === 'Q2' && month >= 4 && month <= 6) matchesDateQ = true;
+      if (q === 'Q3' && month >= 7 && month <= 9) matchesDateQ = true;
+      if (q === 'Q4' && month >= 10 && month <= 12) matchesDateQ = true;
+    }
+
+    if (!matchesFpQ && !matchesDateQ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function filterOppsWithGlobalFilters(opps: SharedOpportunity[], filters?: GlobalHeaderFilters): SharedOpportunity[] {
+  return opps.filter(o => matchesGlobalFilters(o, filters));
+}
+
+/**
  * Custom React hook to listen for dataset-updated events and force component re-renders
  */
 export function useDatasetRefresh(): number {
@@ -201,7 +311,8 @@ export function getSlippageTo2027Opps(dateStr: string = '2026-10-06'): SharedOpp
 /**
  * Direct Sheet Reader: Expiry_Final from inside the specified scope dataset
  */
-export function getExpiryFinalRows(dateStr: string = '2026-10-06', scope: string = 'Fiscal Q4') {
+export function getExpiryFinalRows(dateStr: string = '2026-10-06', scope: string = 'Fiscal Q4', filters?: GlobalHeaderFilters) {
+  const f = filters || getGlobalHeaderFilters();
   const rows = db.getSheetRows(dateStr, 'Expiry_Final', scope) || db.getSheetRows(dateStr, 'Expiry_Final') || [];
   
   return rows.map(r => {
@@ -221,6 +332,21 @@ export function getExpiryFinalRows(dateStr: string = '2026-10-06', scope: string
       tlwCount: Number(r['T-LW Count'] || r['TLW Count'] || 0),
       rawRow: r,
     };
+  }).filter(r => {
+    const pUpper = r.period.toUpperCase();
+    if (f.year !== 'All') {
+      const y = f.year;
+      const yShort = y.substring(2);
+      if (!pUpper.includes(y) && !pUpper.includes(yShort)) {
+        return false;
+      }
+    }
+    if (f.quarter !== 'All') {
+      if (!pUpper.includes(f.quarter.toUpperCase())) {
+        return false;
+      }
+    }
+    return true;
   });
 }
 

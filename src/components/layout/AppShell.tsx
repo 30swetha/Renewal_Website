@@ -15,12 +15,13 @@ import {
   FileSpreadsheet,
   Upload,
   Trash2,
-  X
+  X,
+  Filter
 } from 'lucide-react';
 import { CommandPalette } from '../ui/CommandPalette';
 import { DailyIngestionModal } from '../dashboard/DailyIngestionModal';
 import { db } from '../../lib/database';
-import { useDatasetRefresh } from '../../lib/sharedDataLayer';
+import { useDatasetRefresh, getGlobalHeaderFilters, setGlobalHeaderFilters } from '../../lib/sharedDataLayer';
 import { loadDefaultWorkspaceExcelFiles } from '../../lib/workspaceExcelLoader';
 
 export const AppShell: React.FC = () => {
@@ -32,12 +33,21 @@ export const AppShell: React.FC = () => {
   const [compareDate, setCompareDate] = useState('Yesterday');
   const [loading, setLoading] = useState(true);
 
+  const refreshKey = useDatasetRefresh();
+  const headerFilters = useMemo(() => getGlobalHeaderFilters(), [refreshKey]);
+
+  const handleYearChange = (year: string) => {
+    setGlobalHeaderFilters({ year });
+  };
+
+  const handleQuarterChange = (quarter: string) => {
+    setGlobalHeaderFilters({ quarter });
+  };
+
   const handleCleanAllData = () => {
     db.clearAll();
     window.dispatchEvent(new Event('dataset-updated'));
   };
-
-  const refreshKey = useDatasetRefresh();
 
   const activeFilesReport = useMemo(() => {
     const scopeDs = db.getAllScopeDatasets();
@@ -116,10 +126,10 @@ export const AppShell: React.FC = () => {
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
         
         {/* Top Header Ribbon */}
-        <div className="h-14 px-4 sm:px-6 flex items-center justify-between border-b border-slate-100">
+        <div className="h-14 px-4 sm:px-6 flex items-center justify-between border-b border-slate-100 gap-2 overflow-x-auto">
           
           {/* Logo & Platform Title */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
               className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl"
@@ -142,11 +152,11 @@ export const AppShell: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Header Actions (Date Filters & Search) */}
-          <div className="flex items-center gap-2.5">
+          {/* Right Header Actions (Date Filters, 2 NEW Year & Quarter Dropdowns, Buttons & Search) */}
+          <div className="flex items-center gap-2 shrink-0">
             
             {/* Global Date Picker ("View as of") */}
-            <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl text-xs">
+            <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl text-xs">
               <span className="text-slate-500 font-bold text-[11px]">View as of:</span>
               <input
                 type="date"
@@ -157,8 +167,8 @@ export const AppShell: React.FC = () => {
             </div>
 
             {/* Compare With Selector */}
-            <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl text-xs">
-              <span className="text-slate-500 font-bold text-[11px]">Compare with:</span>
+            <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl text-xs">
+              <span className="text-slate-500 font-bold text-[11px]">Compare:</span>
               <select
                 value={compareDate}
                 onChange={e => setCompareDate(e.target.value)}
@@ -172,7 +182,7 @@ export const AppShell: React.FC = () => {
             {/* Prominent Upload Excel File Button */}
             <button
               onClick={() => setIngestionModalOpen(true)}
-              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-black shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-black shadow-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
               title="Upload Excel File (Renewal Comparison Tool or Summary Workbook)"
             >
               <Upload className="h-3.5 w-3.5" />
@@ -182,12 +192,54 @@ export const AppShell: React.FC = () => {
             {/* Clean All Data Button */}
             <button
               onClick={handleCleanAllData}
-              className="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 active:bg-rose-200 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 active:bg-rose-200 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
               title="Clean all data to zero values"
             >
               <Trash2 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Clean All Data</span>
             </button>
+
+            {/* NEW FILTER 1: Year Selector */}
+            <div className="flex items-center gap-1 bg-blue-50/80 border border-blue-200 px-2.5 py-1 rounded-xl text-xs shadow-2xs font-bold text-blue-900 shrink-0">
+              <Calendar className="h-3.5 w-3.5 text-blue-600" />
+              <span className="text-blue-700 font-extrabold text-[10.5px]">Year:</span>
+              <select
+                value={headerFilters.year}
+                onChange={e => handleYearChange(e.target.value)}
+                className="bg-transparent font-black text-blue-950 text-xs focus:outline-none cursor-pointer"
+                title="Filter dataset by Fiscal / Close Date Year"
+              >
+                <option value="All">All Years</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+                <option value="2028">2028</option>
+              </select>
+            </div>
+
+            {/* NEW FILTER 2: Quarter Selector */}
+            <div className="flex items-center gap-1 bg-purple-50/80 border border-purple-200 px-2.5 py-1 rounded-xl text-xs shadow-2xs font-bold text-purple-900 shrink-0">
+              <Clock className="h-3.5 w-3.5 text-purple-600" />
+              <span className="text-purple-700 font-extrabold text-[10.5px]">Quarter:</span>
+              <select
+                value={headerFilters.quarter}
+                onChange={e => handleQuarterChange(e.target.value)}
+                className="bg-transparent font-black text-purple-950 text-xs focus:outline-none cursor-pointer"
+                title="Filter dataset by Fiscal / Expiry Quarter"
+              >
+                <option value="All">All Quarters</option>
+                <option value="Q1">Q1</option>
+                <option value="Q2">Q2</option>
+                <option value="Q3">Q3</option>
+                <option value="Q4">Q4</option>
+              </select>
+            </div>
+
+            {/* Sales Type Indicator Badge */}
+            <span className="hidden xl:inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-1 rounded-xl text-[10.5px] font-extrabold shrink-0" title="Sales Type filtered to Renewals">
+              <Filter className="h-3 w-3 text-emerald-600" />
+              <span>Renewals Only</span>
+            </span>
 
             {/* Command Palette Trigger */}
             <button
