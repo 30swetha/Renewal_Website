@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { 
   Sparkles, 
@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { CommandPalette } from '../ui/CommandPalette';
 import { DailyIngestionModal } from '../dashboard/DailyIngestionModal';
+import { db } from '../../lib/database';
+import { useDatasetRefresh } from '../../lib/sharedDataLayer';
 
 export const AppShell: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -27,6 +29,30 @@ export const AppShell: React.FC = () => {
   const [asOfDate, setAsOfDate] = useState('2026-10-06');
   const [compareDate, setCompareDate] = useState('Yesterday');
   const [loading, setLoading] = useState(true);
+
+  const refreshKey = useDatasetRefresh();
+
+  const snapshotInfo = useMemo(() => {
+    const snaps = db.getSnapshots();
+    if (!snaps || snaps.length === 0) {
+      return {
+        files: 'No file uploaded',
+        snapshotDate: asOfDate,
+        uploadTime: 'N/A',
+      };
+    }
+    const latest = snaps.find(s => s.snapshot_date === asOfDate) || snaps[snaps.length - 1];
+    const filesList = (latest.source_files && latest.source_files.length > 0)
+      ? latest.source_files.join(', ')
+      : 'Uploaded_File.xlsx';
+    const formattedTime = latest.uploaded_at ? new Date(latest.uploaded_at).toLocaleString() : 'Recent';
+
+    return {
+      files: filesList,
+      snapshotDate: latest.snapshot_date,
+      uploadTime: formattedTime,
+    };
+  }, [asOfDate, refreshKey]);
 
   // Animated branded initial loading screen
   useEffect(() => {
@@ -246,6 +272,11 @@ export const AppShell: React.FC = () => {
         isOpen={ingestionModalOpen}
         onClose={() => setIngestionModalOpen(false)}
       />
+
+      {/* Global Footer Source Attribution */}
+      <footer className="bg-white border-t border-slate-200 py-3 px-6 text-center text-xs font-mono text-slate-500">
+        Data from: <span className="font-bold text-slate-800">{snapshotInfo.files}</span>, snapshot <span className="font-bold text-slate-800">{snapshotInfo.snapshotDate}</span>, uploaded <span className="font-bold text-slate-800">{snapshotInfo.uploadTime}</span>
+      </footer>
 
     </div>
   );

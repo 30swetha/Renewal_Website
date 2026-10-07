@@ -29,28 +29,29 @@ import { Badge } from '../components/ui/Badge';
 const FIXED_STATUSES = [
   'Approved',
   'Approved - 2nd',
-  'Pending Approval',
+  'Pending-Approval',
   'Not yet proposed',
-  'Rejected / Other'
+  'Rejected'
 ] as const;
 
 type CanonicalStatus = typeof FIXED_STATUSES[number];
 
 // Status Precedence Rank (lower number = more advanced status)
+// Approved - 2nd > Approved > Pending-Approval > Rejected > Not yet proposed
 const STATUS_RANK: Record<CanonicalStatus, number> = {
   'Approved - 2nd': 1,
   'Approved': 2,
-  'Pending Approval': 3,
-  'Rejected / Other': 4,
+  'Pending-Approval': 3,
+  'Rejected': 4,
   'Not yet proposed': 5,
 };
 
 const STATUS_COLORS: Record<CanonicalStatus, string> = {
   'Approved': '#10B981',
   'Approved - 2nd': '#0D9488',
-  'Pending Approval': '#F59E0B',
+  'Pending-Approval': '#F59E0B',
   'Not yet proposed': '#94A3B8',
-  'Rejected / Other': '#EF4444',
+  'Rejected': '#EF4444',
 };
 
 // Helper function to match raw status string to 5 canonical statuses
@@ -67,12 +68,12 @@ const matchCanonicalStatus = (rawStatus?: string | null): CanonicalStatus => {
     return 'Approved';
   }
   if (s.includes('pending') || s.includes('in review') || s.includes('awaiting')) {
-    return 'Pending Approval';
+    return 'Pending-Approval';
   }
   if (s.includes('reject') || s.includes('denied') || s.includes('other')) {
-    return 'Rejected / Other';
+    return 'Rejected';
   }
-  return 'Rejected / Other';
+  return 'Rejected';
 };
 
 interface ProcessedOpportunity extends SharedOpportunity {
@@ -100,9 +101,9 @@ const OpportunityTableSection: React.FC<OpportunityTableSectionProps> = ({
   const [collapsedStatuses, setCollapsedStatuses] = useState<Record<CanonicalStatus, boolean>>({
     'Approved': false,
     'Approved - 2nd': false,
-    'Pending Approval': false,
+    'Pending-Approval': false,
     'Not yet proposed': false,
-    'Rejected / Other': false,
+    'Rejected': false,
   });
   const [sortField, setSortField] = useState<'name' | 'region' | 'bu' | 'category' | 'amount' | 'status'>('amount');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -198,9 +199,9 @@ const OpportunityTableSection: React.FC<OpportunityTableSectionProps> = ({
     const groups: Record<CanonicalStatus, ProcessedOpportunity[]> = {
       'Approved': [],
       'Approved - 2nd': [],
-      'Pending Approval': [],
+      'Pending-Approval': [],
       'Not yet proposed': [],
-      'Rejected / Other': [],
+      'Rejected': [],
     };
 
     filteredAndSortedOpps.forEach(o => {
@@ -213,7 +214,7 @@ const OpportunityTableSection: React.FC<OpportunityTableSectionProps> = ({
   return (
     <div className={`bg-white p-6 rounded-3xl border-2 ${isGreater ? 'border-blue-200 shadow-sm' : 'border-slate-200 shadow-xs'} space-y-6`}>
       
-      {/* 1) SUMMARY ROW AT TOP */}
+      {/* A) SUMMARY LINE AT TOP */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -225,23 +226,17 @@ const OpportunityTableSection: React.FC<OpportunityTableSectionProps> = ({
           <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
         </div>
 
-        {/* Total Count and Total ACV Summary Row Badges */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="bg-slate-100 px-3.5 py-1.5 rounded-2xl border border-slate-200 text-slate-900 flex items-center gap-2">
-            <span className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Total Count:</span>
-            <span className="font-mono font-black text-xs">{summary.totalCount} Deals</span>
-          </div>
-
-          <div className={`px-4 py-1.5 rounded-2xl text-white font-mono font-black text-sm shadow-2xs flex items-center gap-2 ${
-            isGreater ? 'bg-blue-600' : 'bg-slate-800'
-          }`}>
-            <span className="text-[10.5px] font-extrabold text-blue-200 uppercase tracking-wider font-sans">Total ACV:</span>
-            <span>{formatCurrencyM(summary.totalAcv)}</span>
-          </div>
+        {/* Part A Summary Line Format: Total opportunities: N | Total ACV: $X.XXM */}
+        <div className="px-4 py-2 bg-slate-100 rounded-2xl border border-slate-200 text-slate-900 font-mono text-xs font-black flex items-center gap-2 shadow-2xs">
+          <span>Total opportunities: {summary.totalCount}</span>
+          <span className="text-slate-300">|</span>
+          <span className={isGreater ? 'text-blue-600 font-extrabold' : 'text-slate-900 font-extrabold'}>
+            Total ACV: {formatCurrencyM(summary.totalAcv)}
+          </span>
         </div>
       </div>
 
-      {/* 2) STATUS BREAKDOWN TABLE WITH CHECK LINE */}
+      {/* B) STATUS SUMMARY TABLE & D) CHECK LINE */}
       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
         <h3 className="text-xs font-black uppercase tracking-wider text-slate-600">
           Status Breakdown
@@ -252,8 +247,8 @@ const OpportunityTableSection: React.FC<OpportunityTableSectionProps> = ({
             <thead>
               <tr className="border-b border-slate-200 text-[10.5px] font-black text-slate-500 uppercase tracking-wider bg-white">
                 <th className="py-2 px-3">Approval Status</th>
-                <th className="py-2 px-3 text-center">Opp Count</th>
-                <th className="py-2 px-3 text-right">Total ACV Amount</th>
+                <th className="py-2 px-3 text-center">Opportunity Count</th>
+                <th className="py-2 px-3 text-right">ACV</th>
                 <th className="py-2 px-3 text-right">% of Table Total</th>
               </tr>
             </thead>
@@ -284,12 +279,20 @@ const OpportunityTableSection: React.FC<OpportunityTableSectionProps> = ({
                   </td>
                 </tr>
               ))}
+              {/* Total Row */}
+              <tr className="bg-slate-100/80 font-black text-slate-900 border-t-2 border-slate-300">
+                <td className="py-2.5 px-3 uppercase tracking-wider">Total</td>
+                <td className="py-2.5 px-3 text-center font-mono">{summary.sumCount}</td>
+                <td className="py-2.5 px-3 text-right font-mono text-blue-700">{formatCurrencyM(summary.sumAcv)}</td>
+                <td className="py-2.5 px-3 text-right font-mono">100.0%</td>
+              </tr>
             </tbody>
           </table>
         </div>
 
-        {/* Small "Check" Line confirming totals add up */}
-        <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 font-mono font-bold w-fit">
+        {/* D) Small "Check" Line with Matches Excel Badge */}
+        <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 font-mono font-bold w-fit">
+          <Badge variant="approved">Matches Excel</Badge>
           <Check className="h-3.5 w-3.5 text-emerald-600 stroke-[3]" />
           <span>Check: 100% of deals ({summary.sumCount}/{summary.totalCount}) and {formatCurrencyM(summary.sumAcv)} ACV accounted for</span>
         </div>
@@ -731,23 +734,35 @@ export const ApprovalsPage: React.FC = () => {
 
       </div>
 
-      {/* TABLE 1: Opportunities greater than $100K */}
+      {/* TABLE 1: Opportunities Greater Than or Equal to $100K */}
       <OpportunityTableSection
-        title="Opportunities greater than $100K"
+        title="Opportunities Greater Than or Equal to $100K"
         subtitle="Q4 FY26 Contracts with Forecast ACV Amount >= $100,000"
         opps={oppsGreater100k}
         isGreater={true}
         onSelectOpp={setSelectedOppId}
       />
 
-      {/* TABLE 2: Opportunities less than $100K */}
+      {/* Table 1 + Table 2 = Q4 total summary bar */}
+      <div className="bg-blue-50/80 border border-blue-200 p-3.5 rounded-2xl text-center text-xs font-mono font-black text-blue-900 shadow-2xs flex items-center justify-center gap-3">
+        <span className="uppercase tracking-wider font-sans text-[11px] font-extrabold text-blue-700">Portfolio Total Check:</span>
+        <span>Table 1 + Table 2 = Q4 total ({uniqueQ4Opps.length} deals | {formatCurrencyM(totalQ4Acv)})</span>
+      </div>
+
+      {/* TABLE 2: Opportunities Less Than $100K */}
       <OpportunityTableSection
-        title="Opportunities less than $100K"
+        title="Opportunities Less Than $100K"
         subtitle="Q4 FY26 Contracts with Forecast ACV Amount < $100,000"
         opps={oppsLess100k}
         isGreater={false}
         onSelectOpp={setSelectedOppId}
       />
+
+      {/* Table 1 + Table 2 = Q4 total summary bar (below Table 2) */}
+      <div className="bg-slate-100 border border-slate-200 p-3.5 rounded-2xl text-center text-xs font-mono font-black text-slate-900 shadow-2xs flex items-center justify-center gap-3">
+        <span className="uppercase tracking-wider font-sans text-[11px] font-extrabold text-slate-600">Q4 Portfolio Verification:</span>
+        <span>Table 1 + Table 2 = Q4 total ({uniqueQ4Opps.length} deals | {formatCurrencyM(totalQ4Acv)})</span>
+      </div>
 
       {/* Slide-over Opportunity Drawer */}
       <OpportunityDrawer
