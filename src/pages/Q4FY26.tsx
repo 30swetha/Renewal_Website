@@ -10,7 +10,6 @@ import { Badge } from '../components/ui/Badge';
 import { DataTable, type ColumnDef } from '../components/ui/DataTable';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
-import { EmptyState } from '../components/ui/EmptyState';
 
 export const Q4FY26Page: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
@@ -24,19 +23,15 @@ export const Q4FY26Page: React.FC = () => {
   // Raw dataset
   const rawDataset = useMemo(() => getSharedDataset(), [refreshKey]);
 
-  if (rawDataset.length === 0) {
-    return <EmptyState title="Q4 Fiscal 2026 Executive Analysis" />;
-  }
-
-
   // Filter raw dataset with GlobalFilterBar
   const filteredDataset = useMemo(() => filterOpportunities(rawDataset, filters), [rawDataset, filters]);
 
-  // Base Q4 2026 Opportunities
+  // Base Q4 2026 Opportunities or all filtered rows if period differs
   const q4Opps = useMemo(() => {
-    return filteredDataset.filter(o =>
+    const q4 = filteredDataset.filter(o =>
       o.fiscal_period === 'Q4 2026' || o.fiscal_period === 'Q4-2026' || o.expiry_quarter.includes('Q4')
     );
+    return q4.length > 0 ? q4 : filteredDataset;
   }, [filteredDataset]);
 
   const totalQ4Acv = useMemo(() => q4Opps.reduce((s, o) => s + o.acv_amount, 0), [q4Opps]);

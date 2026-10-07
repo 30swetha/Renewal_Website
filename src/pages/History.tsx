@@ -3,14 +3,9 @@ import { History as HistoryIcon, ArrowRight, FileSpreadsheet, Calendar } from 'l
 import { compareSnapshotsApi, getSnapshotsApi } from '../lib/api';
 import { Badge } from '../components/ui/Badge';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
-import { EmptyState } from '../components/ui/EmptyState';
 
 export const HistoryPage: React.FC = () => {
   const snapshots = getSnapshotsApi();
-
-  if (snapshots.length === 0) {
-    return <EmptyState title="Upload Snapshots History & Date Comparison" />;
-  }
 
   const [fromDate, setFromDate] = useState<string>('2026-10-05');
   const [toDate, setToDate] = useState<string>('2026-10-06');

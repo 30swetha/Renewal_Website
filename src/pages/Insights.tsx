@@ -20,21 +20,12 @@ import {
 } from '../lib/predictiveEngine';
 import { ModelCardModal } from '../components/insights/ModelCardModal';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
-import { EmptyState } from '../components/ui/EmptyState';
-import { getSharedDataset, useDatasetRefresh } from '../lib/sharedDataLayer';
 
 export const InsightsPage: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
   const [expandedRiskId, setExpandedRiskId] = useState<string | null>(null);
   const [isModelCardOpen, setIsModelCardOpen] = useState(false);
   const [riskFilter, setRiskFilter] = useState<'All' | 'Critical' | 'High' | 'Medium'>('All');
-
-  const refreshKey = useDatasetRefresh();
-  const rawDataset = React.useMemo(() => getSharedDataset(), [refreshKey]);
-
-  if (rawDataset.length === 0) {
-    return <EmptyState title="Predictive Intelligence & Deal Risk Insights" />;
-  }
 
   // Load calculations
   const dealRisks = getAllDealRiskScores('2026-10-06');

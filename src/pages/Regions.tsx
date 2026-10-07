@@ -15,7 +15,6 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 
 import { formatCurrencyM, type SharedOpportunity, useSharedDatasets } from '../lib/sharedDataLayer';
 import { Badge } from '../components/ui/Badge';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
-import { EmptyState } from '../components/ui/EmptyState';
 
 // 6 Canonical Fixed Regions in exact order
 export const FIXED_REGIONS = [
@@ -97,10 +96,6 @@ export const RegionsPage: React.FC = () => {
 
   // Load Today, Yesterday, and Last Week datasets reactively
   const { todayOpps: rawToday, yesterdayOpps: rawYesterday, lastweekOpps: rawLastweek } = useSharedDatasets();
-
-  if (rawToday.length === 0) {
-    return <EmptyState title="Fixed 6 Regional Portfolios" />;
-  }
 
   // 1. Group Today's dataset across the 6 Fixed Canonical Regions
   const regionGridSummaries = useMemo(() => {

@@ -16,7 +16,6 @@ import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { DailyIngestionModal } from '../components/dashboard/DailyIngestionModal';
 import { Badge } from '../components/ui/Badge';
 import { exportReconciliationExcel } from '../lib/excelExporter';
-import { EmptyState } from '../components/ui/EmptyState';
 
 export const RenewalsSummaryDashboard: React.FC = () => {
   const [filters, setFilters] = useState<GlobalFilterState>(INITIAL_FILTERS);
@@ -31,10 +30,6 @@ export const RenewalsSummaryDashboard: React.FC = () => {
   // Load shared dataset for Today (latest)
   const rawDataset = useMemo(() => getSharedDataset(), [refreshKey]);
   const dataset = useMemo(() => filterOpportunities(rawDataset, filters), [rawDataset, filters]);
-
-  if (rawDataset.length === 0) {
-    return <EmptyState title="Data Validation & Reconciliation Workspace" />;
-  }
 
 
   // Available Fiscal Periods for dropdown

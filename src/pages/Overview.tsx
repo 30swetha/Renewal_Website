@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { formatCurrencyM, useSharedDatasets, getExpiryFinalRows, type SharedOpportunity } from '../lib/sharedDataLayer';
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
-import { EmptyState } from '../components/ui/EmptyState';
 
 // Fixed 6 regions in exact required order
 export const FIXED_REGIONS = [
@@ -80,14 +79,21 @@ export const OverviewPage: React.FC = () => {
   // Load Today, Yesterday, and Last Week datasets from central shared data layer
   const { todayOpps: rawToday, yesterdayOpps: rawYesterday, lastweekOpps: rawLastweek } = useSharedDatasets();
 
-  // Scope: Q4 fiscal 2026 only ([Fiscal Period] = Q4 2026)
-  const q4Today = useMemo(() => getQ4OnlyOpps(rawToday), [rawToday]);
-  const q4Yesterday = useMemo(() => getQ4OnlyOpps(rawYesterday), [rawYesterday]);
-  const q4Lastweek = useMemo(() => getQ4OnlyOpps(rawLastweek), [rawLastweek]);
+  // Scope: Q4 fiscal 2026 or all uploaded rows if period differs
+  const q4Today = useMemo(() => {
+    const q4 = getQ4OnlyOpps(rawToday);
+    return q4.length > 0 ? q4 : rawToday;
+  }, [rawToday]);
 
-  if (rawToday.length === 0 || q4Today.length === 0) {
-    return <EmptyState title="Overview" />;
-  }
+  const q4Yesterday = useMemo(() => {
+    const q4 = getQ4OnlyOpps(rawYesterday);
+    return q4.length > 0 ? q4 : rawYesterday;
+  }, [rawYesterday]);
+
+  const q4Lastweek = useMemo(() => {
+    const q4 = getQ4OnlyOpps(rawLastweek);
+    return q4.length > 0 ? q4 : rawLastweek;
+  }, [rawLastweek]);
 
   // Pre-calculated Expiry_Final sheet rows if uploaded
   const expiryFinalRows = useMemo(() => getExpiryFinalRows(), []);
