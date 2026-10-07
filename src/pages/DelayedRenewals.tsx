@@ -10,7 +10,9 @@ import {
   formatCurrencyM, 
   useDatasetRefresh,
   getSharedDataset,
-  getExpiryFinalRows
+  getExpiryFinalRows,
+  getFinalChangeReportRows,
+  getForecastMovementSummaryRows
 } from '../lib/sharedDataLayer';
 import { Badge } from '../components/ui/Badge';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
@@ -47,6 +49,10 @@ export const DelayedRenewalsPage: React.FC = () => {
   const fiscal2026Opps = useMemo(() => {
     return getSharedDataset('2026-10-06', 'Fiscal 2026');
   }, [refreshKey]);
+
+  // 3. Read Renewal Comparison Tool sheets (FinalChangeReport, ForecastMovementSummary)
+  const finalChangeReportRows = useMemo(() => getFinalChangeReportRows(), [refreshKey]);
+  const forecastMovementSummaryRows = useMemo(() => getForecastMovementSummaryRows(), [refreshKey]);
 
   // Filter Expiry_Final rows for Q1-2026, Q2-2026, Q3-2026 where Forecast Category is not Closed (blank counts as not closed)
   const filteredExpiryRows = useMemo(() => {
@@ -87,29 +93,55 @@ export const DelayedRenewalsPage: React.FC = () => {
     return [...filteredDelayedOpps].sort((a, b) => b.acv_amount - a.acv_amount);
   }, [filteredDelayedOpps]);
 
-  // Metrics from Expiry_Final of Fiscal 2026 dataset
+  // Metrics from Expiry_Final or FinalChangeReport / ForecastMovementSummary
   const totalDelayedAcv = useMemo(() => {
+    if (finalChangeReportRows.length > 0) {
+      const slippedRows = finalChangeReportRows.filter(r => {
+        const d = String(r['New Date'] || r['Close Date'] || r['close_date'] || '');
+        return d.includes('2027') || String(r['Change Type'] || '').toLowerCase().includes('slip');
+      });
+      if (slippedRows.length > 0) {
+        return slippedRows.reduce((sum, r) => sum + Number(r['ACV'] || r['Forecast ACV Amount'] || 0), 0);
+      }
+    }
     if (filteredExpiryRows.length > 0) {
       return filteredExpiryRows.reduce((sum, r) => sum + r.todayAmount, 0);
     }
     return filteredDelayedOpps.reduce((sum, o) => sum + o.acv_amount, 0);
-  }, [filteredExpiryRows, filteredDelayedOpps]);
+  }, [filteredExpiryRows, filteredDelayedOpps, finalChangeReportRows]);
 
   const totalDelayedCount = useMemo(() => {
+    if (finalChangeReportRows.length > 0) {
+      const slippedRows = finalChangeReportRows.filter(r => {
+        const d = String(r['New Date'] || r['Close Date'] || r['close_date'] || '');
+        return d.includes('2027') || String(r['Change Type'] || '').toLowerCase().includes('slip');
+      });
+      if (slippedRows.length > 0) return slippedRows.length;
+    }
     if (filteredExpiryRows.length > 0) {
       return filteredExpiryRows.reduce((sum, r) => sum + r.todayCount, 0);
     }
     return filteredDelayedOpps.length;
-  }, [filteredExpiryRows, filteredDelayedOpps]);
+  }, [filteredExpiryRows, filteredDelayedOpps, finalChangeReportRows]);
 
-  // Category Breakdown from Expiry_Final rows
+  // Category Breakdown from Expiry_Final or ForecastMovementSummary
   const categoryBreakdown = useMemo(() => {
     const defaultCategories = ['Commit', 'Best Case', 'Pipeline', 'No category'];
     const map = new Map<string, { amount: number; count: number }>();
     
     defaultCategories.forEach(c => map.set(c, { amount: 0, count: 0 }));
 
-    if (filteredExpiryRows.length > 0) {
+    if (forecastMovementSummaryRows.length > 0) {
+      forecastMovementSummaryRows.forEach(r => {
+        const cat = String(r['Forecast Category'] || r['Category'] || r['Movement'] || 'No category');
+        const cleanCat = cat.includes('Commit') ? 'Commit' : cat.includes('Best') ? 'Best Case' : cat.includes('Pipeline') ? 'Pipeline' : 'No category';
+        const curr = map.get(cleanCat) || { amount: 0, count: 0 };
+        map.set(cleanCat, {
+          amount: curr.amount + Number(r['ACV Value ($M)'] || r['ACV'] || 0),
+          count: curr.count + Number(r['Opportunity Count'] || r['Count'] || 0),
+        });
+      });
+    } else if (filteredExpiryRows.length > 0) {
       filteredExpiryRows.forEach(r => {
         const cat = r.category || 'No category';
         const curr = map.get(cat) || { amount: 0, count: 0 };
@@ -134,7 +166,7 @@ export const DelayedRenewalsPage: React.FC = () => {
       count: data.count,
       amount: data.amount,
     }));
-  }, [filteredExpiryRows, filteredDelayedOpps]);
+  }, [filteredExpiryRows, filteredDelayedOpps, forecastMovementSummaryRows]);
 
   // Toggle individual checkbox
   const togglePeriod = (period: 'Q1' | 'Q2' | 'Q3') => {
