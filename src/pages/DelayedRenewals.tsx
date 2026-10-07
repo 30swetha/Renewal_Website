@@ -13,6 +13,7 @@ import {
 } from '../lib/sharedDataLayer';
 import { Badge } from '../components/ui/Badge';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
+import { EmptyState } from '../components/ui/EmptyState';
 
 /**
  * Normalizes an opportunity's fiscal period into Q1, Q2, or Q3 of Fiscal 2026
@@ -53,6 +54,10 @@ export const DelayedRenewalsPage: React.FC = () => {
 
   // Load central shared datasets
   const { todayOpps } = useSharedDatasets();
+
+  if (todayOpps.length === 0) {
+    return <EmptyState title="Unclosed Prior Quarter Renewals" />;
+  }
 
   // Filter delayed renewals: Should have been completed in Q1, Q2, or Q3 FY26, but NOT Closed
   const filteredDelayedOpps = useMemo(() => {

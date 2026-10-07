@@ -23,6 +23,7 @@ import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpportunity } from '../lib/sharedDataLayer';
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
 import { Badge } from '../components/ui/Badge';
+import { EmptyState } from '../components/ui/EmptyState';
 
 // 5 Canonical Approval Statuses in fixed required order
 const FIXED_STATUSES = [
@@ -511,6 +512,10 @@ export const ApprovalsPage: React.FC = () => {
 
   // Load raw dataset for Today (latest snapshot)
   const rawTodayOpps = useMemo(() => getSharedDataset(), [refreshKey]);
+
+  if (rawTodayOpps.length === 0) {
+    return <EmptyState title="Approval Funnel & Governance Analysis" />;
+  }
 
   // Scope: Q4 Fiscal 2026 ONLY ([Fiscal Period] = Q4 2026 / Q4-2026)
   const q4OppsRaw = useMemo(() => {

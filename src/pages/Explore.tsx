@@ -4,9 +4,9 @@ import { DataTable } from '../components/ui/DataTable';
 import type { ColumnDef } from '../components/ui/DataTable';
 import { Badge } from '../components/ui/Badge';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
-import { db } from '../lib/database';
 import type { OpportunitySnapshotRecord } from '../lib/database';
-import { seedStarterSnapshots } from '../lib/seedScript';
+import { getSharedDataset } from '../lib/sharedDataLayer';
+import { EmptyState } from '../components/ui/EmptyState';
 
 export const ExplorePage: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
@@ -18,11 +18,10 @@ export const ExplorePage: React.FC = () => {
   const [selectedApproval, setSelectedApproval] = useState<string>('All');
   const [selectedQuarter, setSelectedQuarter] = useState<string>('All');
 
-  // Ensure dataset is available
-  seedStarterSnapshots();
-  let allOpps = db.getOpportunitiesForDate('2026-10-06');
+  const allOpps = getSharedDataset();
+
   if (allOpps.length === 0) {
-    allOpps = db.getOpportunitiesForDate('2026-10-05');
+    return <EmptyState title="Explore Portfolio & Contract Registry" />;
   }
 
   // Dynamically extract unique filter options from real dataset records

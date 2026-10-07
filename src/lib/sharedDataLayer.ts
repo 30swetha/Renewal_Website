@@ -74,11 +74,18 @@ export function useSharedDatasets() {
   };
 }
 
+export function hasDataForDate(dateStr?: string): boolean {
+  const { todayDate } = getLatestSnapshotDates();
+  const targetDate = dateStr || todayDate;
+  const opps = db.getOpportunitiesForDate(targetDate);
+  const snap = db.getSnapshot(targetDate);
+  return (snap !== undefined && opps.length > 0) || (opps.length > 0);
+}
+
 /**
  * Get shared dataset for a given snapshot date (defaults to active today snapshot date)
  */
 export function getSharedDataset(dateStr?: string): SharedOpportunity[] {
-  seedStarterSnapshots();
   const { todayDate, yesterdayDate } = getLatestSnapshotDates();
 
   let targetDate = dateStr;
@@ -90,9 +97,9 @@ export function getSharedDataset(dateStr?: string): SharedOpportunity[] {
     targetDate = '2026-09-29';
   }
 
-  let rawOpps = db.getOpportunitiesForDate(targetDate);
+  const rawOpps = db.getOpportunitiesForDate(targetDate);
   if (rawOpps.length === 0) {
-    rawOpps = db.getOpportunitiesForDate(todayDate);
+    return [];
   }
 
   return rawOpps.map(o => {

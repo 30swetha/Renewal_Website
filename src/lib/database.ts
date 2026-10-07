@@ -129,6 +129,15 @@ class DatabaseStore {
     return Array.from(this.snapshots.values()).sort((a, b) => b.snapshot_date.localeCompare(a.snapshot_date));
   }
 
+  public deleteSnapshotForDate(date: string) {
+    this.snapshots.delete(date);
+    this.opportunities.delete(date);
+    this.changeLogs.delete(date);
+    this.dailySummaries.delete(date);
+    this.namedSheets.delete(date);
+    this.saveToLocalStorage();
+  }
+
   public getSnapshot(date: string): SnapshotRecord | undefined {
     return this.snapshots.get(date);
   }

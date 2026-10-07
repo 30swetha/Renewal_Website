@@ -13,6 +13,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { validateAndIngestMultipleFiles, type MultiFileIngestResult } from '../../lib/ingestService';
+import { db } from '../../lib/database';
 import * as XLSX from 'xlsx';
 
 interface DailyIngestionModalProps {
@@ -165,6 +166,17 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Lastweek_Data');
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Expiry_Final');
     XLSX.writeFile(workbook, `RenewIQ_Summary_Workbook_${selectedDate}.xlsx`);
+  };
+
+  const handleClearData = () => {
+    if (!selectedDate) return;
+    db.deleteSnapshotForDate(selectedDate);
+    window.dispatchEvent(new Event('dataset-updated'));
+    setFiles([]);
+    setIngestResult(null);
+    const formattedDate = formatDisplayDate(selectedDate);
+    setSuccessBanner(`Snapshot data cleared for ${formattedDate}. Reverted to empty state.`);
+    if (onSuccess) onSuccess();
   };
 
   return (
@@ -371,35 +383,46 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
           )}
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <div className="flex items-center justify-between pt-3 border-t border-slate-100">
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-navy-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              onClick={handleClearData}
+              className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
             >
-              Cancel
+              <Trash2 className="h-3.5 w-3.5 text-red-600" />
+              <span>Clear data for {selectedDate}</span>
             </button>
-            <button
-              type="submit"
-              disabled={isProcessing || files.length === 0}
-              className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white flex items-center gap-2 shadow-sm transition-all ${
-                isProcessing || files.length === 0
-                  ? 'bg-slate-300 cursor-not-allowed opacity-70'
-                  : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 cursor-pointer hover:shadow'
-              }`}
-            >
-              {isProcessing ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>Validating &amp; Uploading...</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  <span>Validate &amp; Upload Dataset</span>
-                </>
-              )}
-            </button>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-navy-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isProcessing || files.length === 0}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white flex items-center gap-2 shadow-sm transition-all ${
+                  isProcessing || files.length === 0
+                    ? 'bg-slate-300 cursor-not-allowed opacity-70'
+                    : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 cursor-pointer hover:shadow'
+                }`}
+              >
+                {isProcessing ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Validating &amp; Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    <span>Validate &amp; Upload Dataset</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>

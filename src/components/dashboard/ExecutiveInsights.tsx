@@ -25,6 +25,10 @@ export const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({
   data,
   onOpenChatWithQuery,
 }) => {
+  if (!data || !data.grandTotal || !data.grandTotal.todayCount || data.grandTotal.todayCount === 0) {
+    return null;
+  }
+
   const formatM = (val: number) => `$${(val / 1e6).toFixed(2)}M`;
   const formatVarM = (val: number) => `${val >= 0 ? '+' : ''}$${(val / 1e6).toFixed(2)}M`;
 

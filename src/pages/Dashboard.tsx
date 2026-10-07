@@ -10,9 +10,11 @@ import { TopRegionsChart } from '../components/dashboard/TopRegionsChart';
 import { FullSummaryTable } from '../components/dashboard/FullSummaryTable';
 import { OppChangesTable } from '../components/dashboard/OppChangesTable';
 import { ChatPanel } from '../components/dashboard/ChatPanel';
+import { EmptyState } from '../components/ui/EmptyState';
+import { hasDataForDate } from '../lib/sharedDataLayer';
 
 import type { DashboardData } from '../lib/types';
-import { parseMode1SummaryFile, parseMode2ChangesFinder, generateMockDashboardData } from '../lib/excelParser';
+import { parseMode1SummaryFile, parseMode2ChangesFinder } from '../lib/excelParser';
 import { saveReport } from '../lib/storage';
 
 export const Dashboard: React.FC = () => {
@@ -21,10 +23,12 @@ export const Dashboard: React.FC = () => {
 
   const [reportDate, setReportDate] = useState<string>(getTodayStr());
   const [mode, setMode] = useState<'upload' | 'finder'>('upload');
-  const [data, setData] = useState<DashboardData>(() => generateMockDashboardData(getTodayStr()));
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+
+  const isDataAvailable = hasDataForDate(reportDate) || (data !== null && data.grandTotal && data.grandTotal.todayCount > 0);
 
   // Check if a report was reopened from History page state
   useEffect(() => {
@@ -35,11 +39,6 @@ export const Dashboard: React.FC = () => {
       setMode(reopened.mode);
     }
   }, [location.state]);
-
-  // Update report date in data when date picker changes manually
-  useEffect(() => {
-    setData(prev => ({ ...prev, reportDate }));
-  }, [reportDate]);
 
   const handleSingleFileUpload = async (file: File) => {
     setLoading(true);
@@ -68,6 +67,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleSaveToHistory = async () => {
+    if (!data) return;
     try {
       await saveReport(data);
       setSavedSuccess(true);
@@ -77,14 +77,13 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handleLoadSampleData = () => {
-    setError(null);
-    setData(generateMockDashboardData(reportDate));
-  };
-
   const handleOpenChatWithQuery = (_query: string) => {
     // Helper for chat query routing if needed
   };
+
+  if (!data || !isDataAvailable) {
+    return <EmptyState title="Overview" />;
+  }
 
   return (
     <div className="space-y-6 pb-16 relative">
@@ -97,7 +96,7 @@ export const Dashboard: React.FC = () => {
         onSingleFileUpload={handleSingleFileUpload}
         onMultiFilesUpload={handleMultiFilesUpload}
         onSaveToHistory={handleSaveToHistory}
-        onLoadSampleData={handleLoadSampleData}
+        onLoadSampleData={() => {}}
         loading={loading}
         error={error}
         savedSuccess={savedSuccess}

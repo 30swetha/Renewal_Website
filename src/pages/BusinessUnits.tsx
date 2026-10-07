@@ -21,6 +21,8 @@ const BU_BAR_COLORS = [
   '#6366F1', // Indigo
 ];
 
+import { EmptyState } from '../components/ui/EmptyState';
+
 export const BusinessUnitsPage: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
   const [selectedBuFilter, setSelectedBuFilter] = useState<string>('All');
@@ -30,6 +32,10 @@ export const BusinessUnitsPage: React.FC = () => {
 
   // Load active shared dataset for Today
   const dataset = useMemo(() => getSharedDataset(), [refreshKey]);
+
+  if (dataset.length === 0) {
+    return <EmptyState title="Business Unit Renewal Analytics" />;
+  }
 
   // Extract ONLY actual Business Unit values that exist in the data (no invented BUs)
   const buSummaries = useMemo(() => {

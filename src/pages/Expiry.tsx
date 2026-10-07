@@ -13,6 +13,8 @@ import { useSharedDatasets, formatCurrencyM, type SharedOpportunity } from '../l
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { Badge } from '../components/ui/Badge';
 
+import { EmptyState } from '../components/ui/EmptyState';
+
 export const ExpiryPage: React.FC = () => {
   const [metricMode, setMetricMode] = useState<'amount' | 'count'>('amount');
   const [activeCellModal, setActiveCellModal] = useState<{
@@ -25,6 +27,10 @@ export const ExpiryPage: React.FC = () => {
 
   // Load Today, Yesterday, and Last Week datasets reactively
   const { todayOpps, yesterdayOpps, lastweekOpps } = useSharedDatasets();
+
+  if (todayOpps.length === 0) {
+    return <EmptyState title="Service Expiry & Quarterly Heatmap" />;
+  }
 
   // Separate row definitions for 2026 and 2027
   const rows2026 = ['Q1-2026', 'Q2-2026', 'Q3-2026', 'Q4-2026'];
