@@ -273,7 +273,7 @@ export function ingestSnapshot(
 
 export interface IndividualFileResult {
   fileName: string;
-  detectedType: 'Summary workbook' | 'Comparison tool file' | 'CSV Dataset' | 'Unrecognised file layout';
+  detectedType: 'Summary workbook' | 'Comparison tool file' | 'CSV Dataset' | 'Excel Dataset' | 'Unrecognised file layout';
   detectedScope: 'Fiscal 2026' | 'Fiscal 2027' | 'Fiscal Q4' | 'Comparison' | 'Unknown';
   rowCount: number;
   success: boolean;
@@ -344,24 +344,27 @@ async function processSingleFile(
       detectedType = 'CSV Dataset';
       targetSheetName = sheetNames[0] || 'CSV';
     } else {
-      // 1. Detect "Summary workbook" sheets: Today_Data, Yesterday_Data, Lastweek_Data, Expiry_Final
-      const hasTodayData = !!findSheetByName(sheetNames, 'Today_Data');
-      const hasYesterdayData = !!findSheetByName(sheetNames, 'Yesterday_Data');
-      const hasLastweekData = !!findSheetByName(sheetNames, 'Lastweek_Data');
-      const hasExpiryFinal = !!findSheetByName(sheetNames, 'Expiry_Final');
+      // Flexible sheet detection: match standard sheet names or fallback to first sheet
+      const todayDataSheet = findSheetByName(sheetNames, 'Today_Data');
+      const todaySheet = findSheetByName(sheetNames, 'today');
+      const expiryFinalSheet = findSheetByName(sheetNames, 'Expiry_Final');
+      const dataSheet = findSheetByName(sheetNames, 'Data') || findSheetByName(sheetNames, 'Sheet1');
 
-      // 2. Detect "Comparison tool file" sheets: today, yesterday, comparison, FinalChangeReport
-      const hasToday = !!findSheetByName(sheetNames, 'today');
-      const hasYesterday = !!findSheetByName(sheetNames, 'yesterday');
-      const hasComparison = !!findSheetByName(sheetNames, 'comparison');
-      const hasFinalChangeReport = !!findSheetByName(sheetNames, 'FinalChangeReport');
-
-      if (hasTodayData && hasYesterdayData && hasLastweekData && hasExpiryFinal) {
+      if (todayDataSheet) {
         detectedType = 'Summary workbook';
-        targetSheetName = findSheetByName(sheetNames, 'Today_Data')!;
-      } else if (hasToday && hasYesterday && hasComparison && hasFinalChangeReport) {
+        targetSheetName = todayDataSheet;
+      } else if (todaySheet) {
         detectedType = 'Comparison tool file';
-        targetSheetName = findSheetByName(sheetNames, 'today')!;
+        targetSheetName = todaySheet;
+      } else if (expiryFinalSheet) {
+        detectedType = 'Summary workbook';
+        targetSheetName = expiryFinalSheet;
+      } else if (dataSheet) {
+        detectedType = 'Excel Dataset';
+        targetSheetName = dataSheet;
+      } else if (sheetNames.length > 0) {
+        detectedType = 'Excel Dataset';
+        targetSheetName = sheetNames[0];
       } else {
         return {
           fileName,

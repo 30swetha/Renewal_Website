@@ -76,6 +76,13 @@ export const AppShell: React.FC = () => {
     return () => window.removeEventListener('open-command-palette', handler);
   }, []);
 
+  // Ingestion modal listener
+  useEffect(() => {
+    const handler = () => setIngestionModalOpen(true);
+    window.addEventListener('open-ingestion-modal', handler);
+    return () => window.removeEventListener('open-ingestion-modal', handler);
+  }, []);
+
   // Top Navigation Tabs (Overview, Expiry, Approval Funnel, Business Unit, Region, Delayed Renewals, Data)
   const navItems = [
     { label: 'Overview', path: '/dashboard', icon: Layers },
