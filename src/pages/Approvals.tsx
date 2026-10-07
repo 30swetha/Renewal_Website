@@ -673,7 +673,7 @@ export const ApprovalsPage: React.FC = () => {
                   innerRadius={50}
                   outerRadius={80}
                   paddingAngle={3}
-                  label={({ pct }) => Number(pct) > 0 ? `${pct}%` : ''}
+                  label={({ percent }: any) => percent && percent > 0.01 ? `${(percent * 100).toFixed(1)}%` : ''}
                   labelLine={false}
                 >
                   {statusData.map((entry, index) => (
