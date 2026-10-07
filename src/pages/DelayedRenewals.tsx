@@ -8,36 +8,21 @@ import {
 } from 'lucide-react';
 import { 
   formatCurrencyM, 
-  useSharedDatasets, 
-  type SharedOpportunity 
+  useDatasetRefresh,
+  getSharedDataset,
+  getExpiryFinalRows
 } from '../lib/sharedDataLayer';
 import { Badge } from '../components/ui/Badge';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 
 /**
- * Normalizes an opportunity's fiscal period into Q1, Q2, or Q3 of Fiscal 2026
+ * Normalizes an opportunity or sheet row fiscal period into Q1, Q2, or Q3
  */
-export function getFiscalPeriodGroup(opp: SharedOpportunity): 'Q1' | 'Q2' | 'Q3' | 'Other' {
-  const rawPeriod = String(
-    opp.fiscal_period || 
-    (opp.json_data && (opp.json_data['Fiscal Period'] || opp.json_data['Service Expiry Period'])) || 
-    opp.expiry_quarter || 
-    ''
-  ).trim();
-
-  if (rawPeriod.includes('Q1') && (rawPeriod.includes('2026') || rawPeriod.includes('26'))) return 'Q1';
-  if (rawPeriod.includes('Q2') && (rawPeriod.includes('2026') || rawPeriod.includes('26'))) return 'Q2';
-  if (rawPeriod.includes('Q3') && (rawPeriod.includes('2026') || rawPeriod.includes('26'))) return 'Q3';
-
-  // Fallback checking dates if in 2026
-  const dateStr = opp.service_end_date || opp.close_date || '';
-  if (dateStr.startsWith('2026')) {
-    const month = parseInt(dateStr.split('-')[1] || '0', 10);
-    if (month >= 1 && month <= 3) return 'Q1';
-    if (month >= 4 && month <= 6) return 'Q2';
-    if (month >= 7 && month <= 9) return 'Q3';
-  }
-
+export function getFiscalPeriodGroup(periodStr: string): 'Q1' | 'Q2' | 'Q3' | 'Other' {
+  const clean = String(periodStr || '').trim().toUpperCase();
+  if (clean.includes('Q1')) return 'Q1';
+  if (clean.includes('Q2')) return 'Q2';
+  if (clean.includes('Q3')) return 'Q3';
   return 'Other';
 }
 
@@ -51,52 +36,105 @@ export const DelayedRenewalsPage: React.FC = () => {
     Q3: true,
   });
 
-  // Load central shared datasets
-  const { todayOpps } = useSharedDatasets();
+  const refreshKey = useDatasetRefresh();
 
-  // Filter delayed renewals: Should have been completed in Q1, Q2, or Q3 FY26, but NOT Closed
-  const filteredDelayedOpps = useMemo(() => {
-    return todayOpps.filter(opp => {
+  // 1. Read Expiry_Final sheet from "Fiscal 2026" dataset
+  const rawExpiryFinalRows = useMemo(() => {
+    return getExpiryFinalRows('2026-10-06', 'Fiscal 2026');
+  }, [refreshKey]);
+
+  // 2. Read Today_Data opportunities from "Fiscal 2026" dataset
+  const fiscal2026Opps = useMemo(() => {
+    return getSharedDataset('2026-10-06', 'Fiscal 2026');
+  }, [refreshKey]);
+
+  // Filter Expiry_Final rows for Q1-2026, Q2-2026, Q3-2026 where Forecast Category is not Closed (blank counts as not closed)
+  const filteredExpiryRows = useMemo(() => {
+    return rawExpiryFinalRows.filter(row => {
       // Must NOT be Closed
-      if (opp.forecast_category === 'Closed') return false;
+      if (row.category.toLowerCase() === 'closed') return false;
 
-      const group = getFiscalPeriodGroup(opp);
+      const group = getFiscalPeriodGroup(row.period);
       if (group === 'Other') return false;
 
-      // Filter by selected checkboxes
       if (group === 'Q1' && !periodFilters.Q1) return false;
       if (group === 'Q2' && !periodFilters.Q2) return false;
       if (group === 'Q3' && !periodFilters.Q3) return false;
 
       return true;
     });
-  }, [todayOpps, periodFilters]);
+  }, [rawExpiryFinalRows, periodFilters]);
+
+  // Filter Detailed Table Opportunities (Fiscal 2026 dataset, Q1-Q3, not Closed)
+  const filteredDelayedOpps = useMemo(() => {
+    return fiscal2026Opps.filter(opp => {
+      if (opp.forecast_category.toLowerCase() === 'closed') return false;
+
+      const rawPeriod = opp.fiscal_period || opp.expiry_quarter || '';
+      const group = getFiscalPeriodGroup(rawPeriod);
+      if (group === 'Other') return false;
+
+      if (group === 'Q1' && !periodFilters.Q1) return false;
+      if (group === 'Q2' && !periodFilters.Q2) return false;
+      if (group === 'Q3' && !periodFilters.Q3) return false;
+
+      return true;
+    });
+  }, [fiscal2026Opps, periodFilters]);
 
   // Sort table descending by ACV Amount
   const sortedDelayedOpps = useMemo(() => {
     return [...filteredDelayedOpps].sort((a, b) => b.acv_amount - a.acv_amount);
   }, [filteredDelayedOpps]);
 
-  // Total Card Metrics
+  // Metrics from Expiry_Final of Fiscal 2026 dataset
   const totalDelayedAcv = useMemo(() => {
+    if (filteredExpiryRows.length > 0) {
+      return filteredExpiryRows.reduce((sum, r) => sum + r.todayAmount, 0);
+    }
     return filteredDelayedOpps.reduce((sum, o) => sum + o.acv_amount, 0);
-  }, [filteredDelayedOpps]);
+  }, [filteredExpiryRows, filteredDelayedOpps]);
 
-  const totalDelayedCount = filteredDelayedOpps.length;
+  const totalDelayedCount = useMemo(() => {
+    if (filteredExpiryRows.length > 0) {
+      return filteredExpiryRows.reduce((sum, r) => sum + r.todayCount, 0);
+    }
+    return filteredDelayedOpps.length;
+  }, [filteredExpiryRows, filteredDelayedOpps]);
 
-  // Breakdown by Forecast Category
+  // Category Breakdown from Expiry_Final rows
   const categoryBreakdown = useMemo(() => {
-    const categories = ['Commit', 'Best Case', 'Pipeline'];
-    return categories.map(cat => {
-      const items = filteredDelayedOpps.filter(o => o.forecast_category === cat);
-      const amount = items.reduce((sum, o) => sum + o.acv_amount, 0);
-      return {
-        category: cat,
-        count: items.length,
-        amount,
-      };
-    });
-  }, [filteredDelayedOpps]);
+    const defaultCategories = ['Commit', 'Best Case', 'Pipeline', 'No category'];
+    const map = new Map<string, { amount: number; count: number }>();
+    
+    defaultCategories.forEach(c => map.set(c, { amount: 0, count: 0 }));
+
+    if (filteredExpiryRows.length > 0) {
+      filteredExpiryRows.forEach(r => {
+        const cat = r.category || 'No category';
+        const curr = map.get(cat) || { amount: 0, count: 0 };
+        map.set(cat, {
+          amount: curr.amount + r.todayAmount,
+          count: curr.count + r.todayCount,
+        });
+      });
+    } else {
+      filteredDelayedOpps.forEach(o => {
+        const cat = o.forecast_category || 'No category';
+        const curr = map.get(cat) || { amount: 0, count: 0 };
+        map.set(cat, {
+          amount: curr.amount + o.acv_amount,
+          count: curr.count + 1,
+        });
+      });
+    }
+
+    return Array.from(map.entries()).map(([category, data]) => ({
+      category,
+      count: data.count,
+      amount: data.amount,
+    }));
+  }, [filteredExpiryRows, filteredDelayedOpps]);
 
   // Toggle individual checkbox
   const togglePeriod = (period: 'Q1' | 'Q2' | 'Q3') => {
@@ -106,7 +144,6 @@ export const DelayedRenewalsPage: React.FC = () => {
     }));
   };
 
-  // Toggle all checkboxes
   const selectAll = () => {
     setPeriodFilters({ Q1: true, Q2: true, Q3: true });
   };
@@ -123,7 +160,7 @@ export const DelayedRenewalsPage: React.FC = () => {
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-amber-700 text-xs font-black uppercase tracking-wider">
             <Clock className="h-4 w-4 text-amber-600" />
-            <span>Delayed Renewals &bull; Fiscal 2026</span>
+            <span>Delayed Renewals &bull; Fiscal 2026 Dataset (Expiry_Final)</span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
             Unclosed Prior Quarter Renewals
@@ -156,7 +193,6 @@ export const DelayedRenewalsPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
-          {/* Checkboxes */}
           {(['Q1', 'Q2', 'Q3'] as const).map(q => (
             <label
               key={q}
@@ -176,7 +212,6 @@ export const DelayedRenewalsPage: React.FC = () => {
             </label>
           ))}
 
-          {/* Helper Select All / Clear All buttons */}
           <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
             <button
               onClick={selectAll}
@@ -198,7 +233,7 @@ export const DelayedRenewalsPage: React.FC = () => {
       {/* Overview Cards: Total Card & Category Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* TOTAL CARD (Amount and Count) */}
+        {/* TOTAL CARD */}
         <div className="lg:col-span-4 bg-gradient-to-br from-amber-500 to-amber-600 text-white p-6 rounded-3xl shadow-md flex flex-col justify-between space-y-4">
           <div className="space-y-1">
             <div className="flex items-center justify-between">
@@ -225,23 +260,25 @@ export const DelayedRenewalsPage: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
               <BarChart2 className="h-4 w-4 text-blue-600" />
-              <span>Breakdown by Forecast Category</span>
+              <span>Breakdown by Forecast Category (Expiry_Final Sheet)</span>
             </h3>
             <span className="text-[11px] text-slate-500 font-bold">
               Unclosed Categories Only
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-1">
             {categoryBreakdown.map(item => {
               const categoryVariant = 
                 item.category === 'Commit' ? 'commit' :
-                item.category === 'Best Case' ? 'bestcase' : 'pipeline';
+                item.category === 'Best Case' ? 'bestcase' :
+                item.category === 'Pipeline' ? 'pipeline' : 'rejected';
               
               const borderColors: Record<string, string> = {
                 Commit: 'border-blue-200 bg-blue-50/40 text-blue-950',
                 'Best Case': 'border-purple-200 bg-purple-50/40 text-purple-950',
                 Pipeline: 'border-amber-200 bg-amber-50/40 text-amber-950',
+                'No category': 'border-slate-200 bg-slate-50 text-slate-900',
               };
 
               return (
@@ -269,7 +306,7 @@ export const DelayedRenewalsPage: React.FC = () => {
 
       </div>
 
-      {/* DELAYED RENEWALS TABLE (Sorted by amount descending) */}
+      {/* DELAYED RENEWALS TABLE */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
@@ -278,7 +315,7 @@ export const DelayedRenewalsPage: React.FC = () => {
               <span>Delayed Renewals Opportunities Table</span>
             </h3>
             <p className="text-xs text-slate-500">
-              Listing all {sortedDelayedOpps.length} delayed opportunities in descending order by ACV amount
+              Listing all {sortedDelayedOpps.length} delayed opportunities from Fiscal 2026 dataset in descending order by ACV amount
             </p>
           </div>
 
@@ -317,7 +354,6 @@ export const DelayedRenewalsPage: React.FC = () => {
                       onClick={() => setSelectedOppId(opp.opportunity_id)}
                       className="hover:bg-amber-50/60 transition-colors cursor-pointer group"
                     >
-                      {/* Name */}
                       <td className="py-3 px-4">
                         <div className="font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">
                           {opp.opportunity_name}
@@ -327,24 +363,20 @@ export const DelayedRenewalsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Region */}
                       <td className="py-3 px-4 font-bold text-slate-800">
                         {opp.region || opp.sub_region}
                       </td>
 
-                      {/* BU */}
                       <td className="py-3 px-4 font-medium text-slate-600">
                         {opp.business_unit}
                       </td>
 
-                      {/* Fiscal Period */}
                       <td className="py-3 px-4 text-center">
                         <span className="px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-800 font-mono font-black text-[11px]">
                           {rawPeriod}
                         </span>
                       </td>
 
-                      {/* Category */}
                       <td className="py-3 px-4 text-center">
                         <Badge variant={
                           opp.forecast_category === 'Closed' ? 'closed' :
@@ -355,7 +387,6 @@ export const DelayedRenewalsPage: React.FC = () => {
                         </Badge>
                       </td>
 
-                      {/* Approval Status */}
                       <td className="py-3 px-4 text-center">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${
                           opp.approval_status.includes('Approved') ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
@@ -367,7 +398,6 @@ export const DelayedRenewalsPage: React.FC = () => {
                         </span>
                       </td>
 
-                      {/* Amount */}
                       <td className="py-3 px-4 text-right font-black font-mono text-slate-900 text-sm">
                         {formatCurrencyM(opp.acv_amount)}
                       </td>
@@ -391,3 +421,4 @@ export const DelayedRenewalsPage: React.FC = () => {
 };
 
 export default DelayedRenewalsPage;
+

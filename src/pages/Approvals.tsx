@@ -510,8 +510,8 @@ export const ApprovalsPage: React.FC = () => {
 
   const refreshKey = useDatasetRefresh();
 
-  // Load raw dataset for Today (latest snapshot)
-  const rawTodayOpps = useMemo(() => getSharedDataset(), [refreshKey]);
+  // Load ONLY Fiscal Q4 dataset for Approval Funnel page
+  const rawTodayOpps = useMemo(() => getSharedDataset('2026-10-06', 'Fiscal Q4'), [refreshKey]);
 
   if (rawTodayOpps.length === 0) {
     return <EmptyState title="Approval Funnel & Governance Analysis" />;

@@ -9,7 +9,14 @@ import {
   Clock
 } from 'lucide-react';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
-import { useSharedDatasets, formatCurrencyM, type SharedOpportunity } from '../lib/sharedDataLayer';
+import { 
+  useDatasetRefresh, 
+  getSharedDataset, 
+  getWorkbookYesterdayOpps, 
+  getWorkbookLastweekOpps, 
+  formatCurrencyM, 
+  type SharedOpportunity 
+} from '../lib/sharedDataLayer';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { Badge } from '../components/ui/Badge';
 
@@ -23,8 +30,22 @@ export const ExpiryPage: React.FC = () => {
   } | null>(null);
   const [drawerOppId, setDrawerOppId] = useState<string | null>(null);
 
-  // Load Today, Yesterday, and Last Week datasets reactively
-  const { todayOpps, yesterdayOpps, lastweekOpps } = useSharedDatasets();
+  const refreshKey = useDatasetRefresh();
+
+  // Load ONLY Fiscal 2026 dataset for 2026 section
+  const todayOpps2026 = useMemo(() => getSharedDataset('2026-10-06', 'Fiscal 2026'), [refreshKey]);
+  const yesterdayOpps2026 = useMemo(() => getWorkbookYesterdayOpps('2026-10-06', 'Fiscal 2026'), [refreshKey]);
+  const lastweekOpps2026 = useMemo(() => getWorkbookLastweekOpps('2026-10-06', 'Fiscal 2026'), [refreshKey]);
+
+  // Load ONLY Fiscal 2027 dataset for 2027 section
+  const todayOpps2027 = useMemo(() => getSharedDataset('2026-10-06', 'Fiscal 2027'), [refreshKey]);
+  const yesterdayOpps2027 = useMemo(() => getWorkbookYesterdayOpps('2026-10-06', 'Fiscal 2027'), [refreshKey]);
+  const lastweekOpps2027 = useMemo(() => getWorkbookLastweekOpps('2026-10-06', 'Fiscal 2027'), [refreshKey]);
+
+  // Combine 2026 and 2027 datasets strictly without adding Fiscal Q4 or Comparison file
+  const todayOpps = useMemo(() => [...todayOpps2026, ...todayOpps2027], [todayOpps2026, todayOpps2027]);
+  const yesterdayOpps = useMemo(() => [...yesterdayOpps2026, ...yesterdayOpps2027], [yesterdayOpps2026, yesterdayOpps2027]);
+  const lastweekOpps = useMemo(() => [...lastweekOpps2026, ...lastweekOpps2027], [lastweekOpps2026, lastweekOpps2027]);
 
   // Separate row definitions for 2026 and 2027
   const rows2026 = ['Q1-2026', 'Q2-2026', 'Q3-2026', 'Q4-2026'];

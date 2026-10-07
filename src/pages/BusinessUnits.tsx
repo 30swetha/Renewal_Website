@@ -28,8 +28,8 @@ export const BusinessUnitsPage: React.FC = () => {
 
   const refreshKey = useDatasetRefresh();
 
-  // Load active shared dataset for Today
-  const dataset = useMemo(() => getSharedDataset(), [refreshKey]);
+  // Load ONLY Fiscal Q4 dataset for Business Unit page
+  const dataset = useMemo(() => getSharedDataset('2026-10-06', 'Fiscal Q4'), [refreshKey]);
 
   // Extract ONLY actual Business Unit values that exist in the data (no invented BUs)
   const buSummaries = useMemo(() => {

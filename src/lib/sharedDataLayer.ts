@@ -178,26 +178,50 @@ export function getFiscalQ4Dataset(dateStr: string = '2026-10-06'): SharedOpport
   return getSharedDataset(dateStr, 'Fiscal Q4');
 }
 
+export const SLIPPAGE_TO_2027_DEFINITION = "Opportunities in the Fiscal Q4 dataset whose Close Date year is 2027";
+
+export function isCloseDateYear2027(closeDateRaw: any): boolean {
+  if (!closeDateRaw) return false;
+  const str = String(closeDateRaw).trim();
+  if (/^\d+(\.\d+)?$/.test(str)) {
+    const num = parseFloat(str);
+    if (num > 30000 && num < 60000) {
+      const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+      return d.getUTCFullYear() === 2027;
+    }
+  }
+  return str.includes('2027');
+}
+
+export function getSlippageTo2027Opps(dateStr: string = '2026-10-06'): SharedOpportunity[] {
+  const q4Opps = getSharedDataset(dateStr, 'Fiscal Q4');
+  return q4Opps.filter(o => isCloseDateYear2027(o.close_date || o.json_data?.['Close Date']));
+}
+
 /**
- * Direct Sheet Reader: Expiry_Final from inside the SAME uploaded workbook
+ * Direct Sheet Reader: Expiry_Final from inside the specified scope dataset
  */
 export function getExpiryFinalRows(dateStr: string = '2026-10-06', scope: string = 'Fiscal Q4') {
   const rows = db.getSheetRows(dateStr, 'Expiry_Final', scope) || db.getSheetRows(dateStr, 'Expiry_Final') || [];
   
-  return rows.filter(r => {
-    const period = String(r['Fiscal Period'] || r['Service Expiry Period'] || r['Expiry Period'] || '').trim();
-    return period === 'Q4-2026' || period === 'Q4 2026' || period.includes('Q4');
-  }).map(r => ({
-    period: String(r['Fiscal Period'] || r['Service Expiry Period'] || 'Q4-2026').trim(),
-    category: String(r['Forecast Category'] || r['Category'] || '').trim() || 'No category',
-    todayAmount: Number(r['Today Amount'] || r['Today ACV'] || r['Today $'] || 0),
-    todayCount: Number(r['Today Count'] || r['Today #'] || 0),
-    tyAmount: Number(r['T-Y Amount'] || r['T-Y ACV'] || r['TY Amount'] || 0),
-    tyCount: Number(r['T-Y Count'] || r['TY Count'] || 0),
-    tlwAmount: Number(r['T-LW Amount'] || r['T-LW ACV'] || r['TLW Amount'] || 0),
-    tlwCount: Number(r['T-LW Count'] || r['TLW Count'] || 0),
-    rawRow: r,
-  }));
+  return rows.map(r => {
+    let cat = String(r['Forecast Category'] || r['Category'] || '').trim();
+    if (!cat || cat.toLowerCase() === 'blank' || cat.toLowerCase() === 'none') {
+      cat = 'No category';
+    }
+
+    return {
+      period: String(r['Fiscal Period'] || r['Service Expiry Period'] || 'Q4-2026').trim(),
+      category: cat,
+      todayAmount: Number(r['Today Amount'] || r['Today ACV'] || r['Today $'] || 0),
+      todayCount: Number(r['Today Count'] || r['Today #'] || 0),
+      tyAmount: Number(r['T-Y Amount'] || r['T-Y ACV'] || r['TY Amount'] || 0),
+      tyCount: Number(r['T-Y Count'] || r['TY Count'] || 0),
+      tlwAmount: Number(r['T-LW Amount'] || r['T-LW ACV'] || r['TLW Amount'] || 0),
+      tlwCount: Number(r['T-LW Count'] || r['TLW Count'] || 0),
+      rawRow: r,
+    };
+  });
 }
 
 /**
@@ -292,3 +316,32 @@ export function getTop10Rows(dateStr?: string) {
     top10RegionBu: buRows,
   };
 }
+
+/**
+ * Direct Sheet Reader for Comparison tool dataset sheets
+ */
+export function getComparisonSheetRows(sheetName: string, dateStr?: string) {
+  const { todayDate } = getLatestSnapshotDates();
+  const targetDate = dateStr || todayDate;
+  return db.getSheetRows(targetDate, sheetName, 'Comparison tool file') || 
+         db.getSheetRows(targetDate, sheetName) || 
+         db.getSheetRows(todayDate, sheetName) || 
+         [];
+}
+
+export function getForecastMovementSummaryRows(dateStr?: string) {
+  return getComparisonSheetRows('ForecastMovementSummary', dateStr);
+}
+
+export function getForecastChangesRows(dateStr?: string) {
+  return getComparisonSheetRows('ForecastChanges', dateStr);
+}
+
+export function getApprovalStatusChangesRows(dateStr?: string) {
+  return getComparisonSheetRows('ApprovalStatusChanges', dateStr);
+}
+
+export function getFinalChangeReportRows(dateStr?: string) {
+  return getComparisonSheetRows('FinalChangeReport', dateStr);
+}
+

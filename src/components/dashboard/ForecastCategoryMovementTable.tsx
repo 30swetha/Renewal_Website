@@ -11,7 +11,16 @@ import {
   Layers,
   Calendar
 } from 'lucide-react';
-import { formatCurrencyM, useSharedDatasets, type SharedOpportunity } from '../../lib/sharedDataLayer';
+import { 
+  formatCurrencyM, 
+  useSharedDatasets, 
+  useDatasetRefresh,
+  getForecastMovementSummaryRows,
+  getForecastChangesRows,
+  getApprovalStatusChangesRows,
+  getFinalChangeReportRows,
+  type SharedOpportunity 
+} from '../../lib/sharedDataLayer';
 import { OpportunityDrawer } from '../ui/OpportunityDrawer';
 
 export type ComparisonPeriod = 'yesterday' | 'lastweek';
@@ -83,9 +92,15 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
   const [modalData, setModalData] = useState<MovementDetailModalData | null>(null);
   const [drawerOppId, setDrawerOppId] = useState<string | null>(null);
 
+  const refreshKey = useDatasetRefresh();
+  const summaryRows = useMemo(() => getForecastMovementSummaryRows(), [refreshKey]);
+  const forecastChangesRows = useMemo(() => getForecastChangesRows(), [refreshKey]);
+  const approvalChangesRows = useMemo(() => getApprovalStatusChangesRows(), [refreshKey]);
+  const finalChangeReportRows = useMemo(() => getFinalChangeReportRows(), [refreshKey]);
+
   const { todayOpps: rawToday, yesterdayOpps: rawYesterday, lastweekOpps: rawLastweek } = useSharedDatasets();
 
-  if (rawToday.length === 0) {
+  if (rawToday.length === 0 && summaryRows.length === 0 && forecastChangesRows.length === 0 && approvalChangesRows.length === 0 && finalChangeReportRows.length === 0) {
     return null;
   }
 

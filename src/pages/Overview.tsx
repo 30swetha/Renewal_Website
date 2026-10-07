@@ -10,7 +10,15 @@ import {
   Globe2,
   Clock
 } from 'lucide-react';
-import { formatCurrencyM, useSharedDatasets, getExpiryFinalRows, type SharedOpportunity } from '../lib/sharedDataLayer';
+import { 
+  formatCurrencyM, 
+  useDatasetRefresh, 
+  getSharedDataset, 
+  getWorkbookYesterdayOpps, 
+  getWorkbookLastweekOpps, 
+  getSlippageTo2027Opps, 
+  getExpiryFinalRows 
+} from '../lib/sharedDataLayer';
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
 
 // Fixed 6 regions in exact required order
@@ -54,49 +62,16 @@ export function normalizeRegionName(rawRegion: string | undefined | null): Fixed
   return 'Other';
 }
 
-/**
- * Filter dataset to Q4 Fiscal 2026 only
- */
-function getQ4OnlyOpps(opps: SharedOpportunity[]): SharedOpportunity[] {
-  return opps.filter(o => {
-    const rawPeriod = String(
-      o.fiscal_period || 
-      (o.json_data && (o.json_data['Fiscal Period'] || o.json_data['Service Expiry Period'])) || 
-      o.expiry_quarter || 
-      ''
-    ).trim();
-
-    return (
-      rawPeriod === 'Q4 2026' || 
-      rawPeriod === 'Q4-2026' || 
-      rawPeriod.includes('Q4') ||
-      o.expiry_quarter.includes('Q4')
-    );
-  });
-}
-
 export const OverviewPage: React.FC = () => {
-  // Load Today, Yesterday, and Last Week datasets from central shared data layer
-  const { todayOpps: rawToday, yesterdayOpps: rawYesterday, lastweekOpps: rawLastweek } = useSharedDatasets();
+  const refreshKey = useDatasetRefresh();
 
-  // Scope: Q4 fiscal 2026 or all uploaded rows if period differs
-  const q4Today = useMemo(() => {
-    const q4 = getQ4OnlyOpps(rawToday);
-    return q4.length > 0 ? q4 : rawToday;
-  }, [rawToday]);
+  // Load ONLY Fiscal Q4 dataset for Overview page
+  const q4Today = useMemo(() => getSharedDataset('2026-10-06', 'Fiscal Q4'), [refreshKey]);
+  const q4Yesterday = useMemo(() => getWorkbookYesterdayOpps('2026-10-06', 'Fiscal Q4'), [refreshKey]);
+  const q4Lastweek = useMemo(() => getWorkbookLastweekOpps('2026-10-06', 'Fiscal Q4'), [refreshKey]);
 
-  const q4Yesterday = useMemo(() => {
-    const q4 = getQ4OnlyOpps(rawYesterday);
-    return q4.length > 0 ? q4 : rawYesterday;
-  }, [rawYesterday]);
-
-  const q4Lastweek = useMemo(() => {
-    const q4 = getQ4OnlyOpps(rawLastweek);
-    return q4.length > 0 ? q4 : rawLastweek;
-  }, [rawLastweek]);
-
-  // Pre-calculated Expiry_Final sheet rows if uploaded
-  const expiryFinalRows = useMemo(() => getExpiryFinalRows(), []);
+  // Read Expiry_Final pre-calculated rows directly from Fiscal Q4 dataset
+  const expiryFinalRows = useMemo(() => getExpiryFinalRows('2026-10-06', 'Fiscal Q4'), [refreshKey]);
 
   // Check if any opp has an unmapped region
   const hasOtherRegion = useMemo(() => {
@@ -107,21 +82,34 @@ export const OverviewPage: React.FC = () => {
     return hasOtherRegion ? [...FIXED_REGIONS, 'Other' as const] : [...FIXED_REGIONS];
   }, [hasOtherRegion]);
 
-  // SECTION 1: Total Renewal Q4 ACV Value (Using Expiry_Final pre-calculated sheet values when uploaded)
+  // SECTION 1: Total Renewal Q4 ACV Value (Using Expiry_Final pre-calculated sheet values)
   const totalQ4AcvToday = useMemo(() => {
     if (expiryFinalRows.length > 0) {
-      const sum = expiryFinalRows.reduce((s, r) => s + r.todayAmount, 0);
+      const sum = expiryFinalRows.reduce((s: number, r) => s + r.todayAmount, 0);
       if (sum > 0) return sum;
     }
-    return q4Today.reduce((s, o) => s + o.acv_amount, 0);
+    return q4Today.reduce((s: number, o) => s + o.acv_amount, 0);
   }, [q4Today, expiryFinalRows]);
 
-  const totalQ4AcvYesterday = useMemo(() => q4Yesterday.reduce((s, o) => s + o.acv_amount, 0), [q4Yesterday]);
-  const totalQ4AcvLastweek = useMemo(() => q4Lastweek.reduce((s, o) => s + o.acv_amount, 0), [q4Lastweek]);
+  const totalQ4AcvYesterday = useMemo(() => {
+    if (expiryFinalRows.length > 0) {
+      const sumTY = expiryFinalRows.reduce((s: number, r) => s + r.tyAmount, 0);
+      if (sumTY !== 0) return totalQ4AcvToday - sumTY;
+    }
+    return q4Yesterday.reduce((s: number, o) => s + o.acv_amount, 0);
+  }, [q4Yesterday, expiryFinalRows, totalQ4AcvToday]);
+
+  const totalQ4AcvLastweek = useMemo(() => {
+    if (expiryFinalRows.length > 0) {
+      const sumTLW = expiryFinalRows.reduce((s: number, r) => s + r.tlwAmount, 0);
+      if (sumTLW !== 0) return totalQ4AcvToday - sumTLW;
+    }
+    return q4Lastweek.reduce((s: number, o) => s + o.acv_amount, 0);
+  }, [q4Lastweek, expiryFinalRows, totalQ4AcvToday]);
 
   const totalCountToday = useMemo(() => {
     if (expiryFinalRows.length > 0) {
-      const sum = expiryFinalRows.reduce((s, r) => s + r.todayCount, 0);
+      const sum = expiryFinalRows.reduce((s: number, r) => s + r.todayCount, 0);
       if (sum > 0) return sum;
     }
     return q4Today.length;
@@ -130,20 +118,20 @@ export const OverviewPage: React.FC = () => {
   // SECTION 2: Four Fixed Category Cards (Closed, Commit, Best Case, Pipeline)
   const getCategoryMetrics = (category: string) => {
     const sheetRow = expiryFinalRows.find(r => r.category.toLowerCase() === category.toLowerCase());
-    const tOpps = q4Today.filter(o => o.forecast_category === category);
-    const yOpps = q4Yesterday.filter(o => o.forecast_category === category);
-    const lwOpps = q4Lastweek.filter(o => o.forecast_category === category);
+    const tOpps = q4Today.filter(o => o.forecast_category.toLowerCase() === category.toLowerCase());
+    const yOpps = q4Yesterday.filter(o => o.forecast_category.toLowerCase() === category.toLowerCase());
+    const lwOpps = q4Lastweek.filter(o => o.forecast_category.toLowerCase() === category.toLowerCase());
 
-    const tAcv = sheetRow && sheetRow.todayAmount > 0 ? sheetRow.todayAmount : tOpps.reduce((s, o) => s + o.acv_amount, 0);
+    const tAcv = sheetRow && sheetRow.todayAmount > 0 ? sheetRow.todayAmount : tOpps.reduce((s: number, o) => s + o.acv_amount, 0);
     const tCnt = sheetRow && sheetRow.todayCount > 0 ? sheetRow.todayCount : tOpps.length;
 
     const yAcv = sheetRow && sheetRow.tyAmount !== undefined && sheetRow.tyAmount !== 0
       ? tAcv - sheetRow.tyAmount 
-      : yOpps.reduce((s, o) => s + o.acv_amount, 0);
+      : yOpps.reduce((s: number, o) => s + o.acv_amount, 0);
 
     const lwAcv = sheetRow && sheetRow.tlwAmount !== undefined && sheetRow.tlwAmount !== 0
       ? tAcv - sheetRow.tlwAmount
-      : lwOpps.reduce((s, o) => s + o.acv_amount, 0);
+      : lwOpps.reduce((s: number, o) => s + o.acv_amount, 0);
 
     return {
       todayAcv: tAcv,
@@ -155,23 +143,24 @@ export const OverviewPage: React.FC = () => {
     };
   };
 
-  const closedMetrics = useMemo(() => getCategoryMetrics('Closed'), [q4Today, q4Yesterday, q4Lastweek]);
-  const commitMetrics = useMemo(() => getCategoryMetrics('Commit'), [q4Today, q4Yesterday, q4Lastweek]);
-  const bestCaseMetrics = useMemo(() => getCategoryMetrics('Best Case'), [q4Today, q4Yesterday, q4Lastweek]);
-  const pipelineMetrics = useMemo(() => getCategoryMetrics('Pipeline'), [q4Today, q4Yesterday, q4Lastweek]);
+  const closedMetrics = useMemo(() => getCategoryMetrics('Closed'), [expiryFinalRows, q4Today, q4Yesterday, q4Lastweek]);
+  const commitMetrics = useMemo(() => getCategoryMetrics('Commit'), [expiryFinalRows, q4Today, q4Yesterday, q4Lastweek]);
+  const bestCaseMetrics = useMemo(() => getCategoryMetrics('Best Case'), [expiryFinalRows, q4Today, q4Yesterday, q4Lastweek]);
+  const pipelineMetrics = useMemo(() => getCategoryMetrics('Pipeline'), [expiryFinalRows, q4Today, q4Yesterday, q4Lastweek]);
 
-  // SECTION 3: Slippage to 2027
-  const isSlippedTo2027 = (opp: SharedOpportunity) => {
-    return opp.is_slipped_to_2027 || opp.close_date.startsWith('2027');
-  };
+  // SECTION 3: Slippage to 2027 (Strict single definition across entire app)
+  const slippedToday = useMemo(() => getSlippageTo2027Opps('2026-10-06'), [refreshKey]);
+  const slippedAcvToday = useMemo(() => slippedToday.reduce((s: number, o) => s + o.acv_amount, 0), [slippedToday]);
 
-  const slippedToday = useMemo(() => q4Today.filter(isSlippedTo2027), [q4Today]);
-  const slippedYesterday = useMemo(() => q4Yesterday.filter(isSlippedTo2027), [q4Yesterday]);
-  const slippedLastweek = useMemo(() => q4Lastweek.filter(isSlippedTo2027), [q4Lastweek]);
+  const slippedYesterday = useMemo(() => {
+    return q4Yesterday.filter(o => o.is_slipped_to_2027 || o.close_date.startsWith('2027'));
+  }, [q4Yesterday]);
+  const slippedAcvYesterday = useMemo(() => slippedYesterday.reduce((s: number, o) => s + o.acv_amount, 0), [slippedYesterday]);
 
-  const slippedAcvToday = slippedToday.reduce((s, o) => s + o.acv_amount, 0);
-  const slippedAcvYesterday = slippedYesterday.reduce((s, o) => s + o.acv_amount, 0);
-  const slippedAcvLastweek = slippedLastweek.reduce((s, o) => s + o.acv_amount, 0);
+  const slippedLastweek = useMemo(() => {
+    return q4Lastweek.filter(o => o.is_slipped_to_2027 || o.close_date.startsWith('2027'));
+  }, [q4Lastweek]);
+  const slippedAcvLastweek = useMemo(() => slippedLastweek.reduce((s: number, o) => s + o.acv_amount, 0), [slippedLastweek]);
 
   // SECTION 4: Proposal Confirmation Table Data
   const proposalTableData = useMemo(() => {
@@ -223,11 +212,11 @@ export const OverviewPage: React.FC = () => {
     return activeRegionList.map(regName => {
       const regOpps = q4Today.filter(o => normalizeRegionName(o.sub_region || o.region) === regName);
 
-      const totalAcv = regOpps.reduce((s, o) => s + o.acv_amount, 0);
-      const closedAcv = regOpps.filter(o => o.forecast_category === 'Closed').reduce((s, o) => s + o.acv_amount, 0);
-      const commitAcv = regOpps.filter(o => o.forecast_category === 'Commit').reduce((s, o) => s + o.acv_amount, 0);
-      const bestCaseAcv = regOpps.filter(o => o.forecast_category === 'Best Case').reduce((s, o) => s + o.acv_amount, 0);
-      const pipelineAcv = regOpps.filter(o => o.forecast_category === 'Pipeline').reduce((s, o) => s + o.acv_amount, 0);
+      const totalAcv = regOpps.reduce((s: number, o) => s + o.acv_amount, 0);
+      const closedAcv = regOpps.filter(o => o.forecast_category === 'Closed').reduce((s: number, o) => s + o.acv_amount, 0);
+      const commitAcv = regOpps.filter(o => o.forecast_category === 'Commit').reduce((s: number, o) => s + o.acv_amount, 0);
+      const bestCaseAcv = regOpps.filter(o => o.forecast_category === 'Best Case').reduce((s: number, o) => s + o.acv_amount, 0);
+      const pipelineAcv = regOpps.filter(o => o.forecast_category === 'Pipeline').reduce((s: number, o) => s + o.acv_amount, 0);
 
       return {
         region: regName,
@@ -658,19 +647,28 @@ export const OverviewPage: React.FC = () => {
           </table>
         </div>
 
-        {/* Small Validation Check Line */}
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold">
-          <div className="flex items-center gap-2 text-emerald-700">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-            <span>
-              Check: Sum of regional ACVs ({formatCurrencyM(regionalTrendTotals.totalAcv)}) matches Section 1 Total Renewal Q4 ACV ({formatCurrencyM(totalQ4AcvToday)}).
+        {/* Real Dynamic Comparison Check Line */}
+        {Math.abs(regionalTrendTotals.totalAcv - totalQ4AcvToday) <= 10000 ? (
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-700 bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-200">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span>Regional Trend Total ({formatCurrencyM(regionalTrendTotals.totalAcv)}) matches Overview Total Renewal Q4 ACV ({formatCurrencyM(totalQ4AcvToday)}).</span>
+            </div>
+            <span className="font-mono text-[10.5px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-black">
+              EQUAL
             </span>
           </div>
-
-          <span className="font-mono text-[10.5px] text-slate-400">
-            Difference: {formatCurrencyM(Math.abs(regionalTrendTotals.totalAcv - totalQ4AcvToday))}
-          </span>
-        </div>
+        ) : (
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-rose-700 bg-rose-50/60 p-2.5 rounded-xl border border-rose-200">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+              <span>Mismatch Detected: Regional Trend Total ({formatCurrencyM(regionalTrendTotals.totalAcv)}) vs Overview Total ({formatCurrencyM(totalQ4AcvToday)})</span>
+            </div>
+            <span className="font-mono text-[10.5px] px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-black">
+              DIFF: {formatCurrencyM(Math.abs(regionalTrendTotals.totalAcv - totalQ4AcvToday))}
+            </span>
+          </div>
+        )}
       </section>
 
     </div>

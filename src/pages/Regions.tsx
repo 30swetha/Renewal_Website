@@ -94,8 +94,8 @@ export const RegionsPage: React.FC = () => {
     }[];
   } | null>(null);
 
-  // Load Today, Yesterday, and Last Week datasets reactively
-  const { todayOpps: rawToday, yesterdayOpps: rawYesterday, lastweekOpps: rawLastweek } = useSharedDatasets();
+  // Load ONLY Fiscal Q4 dataset for Region page
+  const { todayOpps: rawToday, yesterdayOpps: rawYesterday, lastweekOpps: rawLastweek } = useSharedDatasets('Fiscal Q4');
 
   // 1. Group Today's dataset across the 6 Fixed Canonical Regions
   const regionGridSummaries = useMemo(() => {
