@@ -24,6 +24,7 @@ const BU_BAR_COLORS = [
 export const BusinessUnitsPage: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
   const [selectedBuFilter, setSelectedBuFilter] = useState<string>('All');
+  const [chartOrientation, setChartOrientation] = useState<'horizontal' | 'vertical'>('horizontal');
 
   const refreshKey = useDatasetRefresh();
 
@@ -52,7 +53,7 @@ export const BusinessUnitsPage: React.FC = () => {
   // Dynamic list of unique BUs for dropdown filter
   const uniqueBuNames = useMemo(() => buSummaries.map(b => b.buName), [buSummaries]);
 
-  // Chart data: Vertical standing bars (ACV by BU, sorted descending)
+  // Chart data: Sorted descending by ACV
   const chartData = useMemo(() => {
     return buSummaries.map(b => ({
       name: b.buName,
@@ -114,63 +115,138 @@ export const BusinessUnitsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 1) BAR CHART: Vertical Standing Bars (ACV by BU, Sorted Descending) */}
+      {/* 1) BAR CHART: Clean Non-Overlapping Layout with Toggle */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-3">
           <div>
             <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-blue-600" />
-              <span>Forecast ACV by Business Unit ($M) &bull; Vertical Standing Bars</span>
+              <span>Forecast ACV by Business Unit ($M)</span>
             </h3>
             <p className="text-xs text-slate-500">
-              Sorted in descending order by Forecast ACV Amount. Click any vertical bar to jump to top opportunities.
+              Sorted in descending order by Forecast ACV Amount. Click any bar to jump to top opportunities.
             </p>
           </div>
 
-          <span className="text-xs font-mono font-black text-blue-900 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-            Total Portfolio: {formatCurrencyM(grandTotalAcv)} ({dataset.length} Deals)
-          </span>
+          <div className="flex items-center gap-3 shrink-0">
+            {/* View Layout Toggle Button */}
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs">
+              <button
+                onClick={() => setChartOrientation('horizontal')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                  chartOrientation === 'horizontal'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Horizontal View
+              </button>
+              <button
+                onClick={() => setChartOrientation('vertical')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                  chartOrientation === 'vertical'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Vertical View
+              </button>
+            </div>
+
+            <span className="text-xs font-mono font-black text-blue-900 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200">
+              Total Portfolio: {formatCurrencyM(grandTotalAcv)} ({dataset.length} Deals)
+            </span>
+          </div>
         </div>
 
-        {/* Recharts Vertical Standing Bar Chart */}
-        <div className="h-72 pt-2">
+        {/* Recharts Bar Chart (Horizontal or Vertical with clean non-overlapping labels) */}
+        <div className={`${chartOrientation === 'horizontal' ? 'h-96' : 'h-80'} pt-2`}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              margin={{ top: 15, right: 20, left: 10, bottom: 25 }}
-            >
-              <XAxis 
-                dataKey="name" 
-                tick={{ fontSize: 11, fontWeight: 'bold', fill: '#0F172A' }} 
-                interval={0}
-              />
-              <YAxis 
-                tickFormatter={(v) => `$${v}M`} 
-                tick={{ fontSize: 11, fill: '#475569' }} 
-              />
-              <Tooltip 
-                formatter={(val: any) => [`$${Number(val).toFixed(2)}M`, 'Forecast ACV']}
-                contentStyle={{ backgroundColor: '#FFFFFF', borderRadius: '12px', borderColor: '#CBD5E1', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 600 }}
-              />
-              <Bar 
-                dataKey="amount" 
-                name="Forecast ACV ($M)" 
-                radius={[8, 8, 0, 0]}
-                onClick={(data: any) => {
-                  if (data && data.name) {
-                    scrollToBuSection(data.name);
-                  }
-                }}
-                className="cursor-pointer"
+            {chartOrientation === 'horizontal' ? (
+              <BarChart
+                layout="vertical"
+                data={chartData}
+                margin={{ top: 10, right: 30, left: 20, bottom: 10 }}
               >
-                {chartData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={selectedBuFilter === entry.name ? '#1E3A8A' : BU_BAR_COLORS[index % BU_BAR_COLORS.length]} 
-                  />
-                ))}
-              </Bar>
-            </BarChart>
+                <XAxis 
+                  type="number"
+                  tickFormatter={(v) => `$${v}M`} 
+                  tick={{ fontSize: 11, fill: '#475569' }} 
+                />
+                <YAxis 
+                  type="category"
+                  dataKey="name" 
+                  tickFormatter={(val) => val.length > 24 ? `${val.substring(0, 24)}...` : val}
+                  tick={{ fontSize: 11, fontWeight: 'bold', fill: '#0F172A' }} 
+                  width={180}
+                />
+                <Tooltip 
+                  formatter={(val: any) => [`$${Number(val).toFixed(2)}M`, 'Forecast ACV']}
+                  labelFormatter={(label) => `Business Unit: ${label}`}
+                  contentStyle={{ backgroundColor: '#FFFFFF', borderRadius: '12px', borderColor: '#CBD5E1', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 600 }}
+                />
+                <Bar 
+                  dataKey="amount" 
+                  name="Forecast ACV ($M)" 
+                  radius={[0, 8, 8, 0]}
+                  onClick={(data: any) => {
+                    if (data && data.name) {
+                      scrollToBuSection(data.name);
+                    }
+                  }}
+                  className="cursor-pointer"
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={selectedBuFilter === entry.name ? '#1E3A8A' : BU_BAR_COLORS[index % BU_BAR_COLORS.length]} 
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            ) : (
+              <BarChart
+                data={chartData}
+                margin={{ top: 15, right: 20, left: 10, bottom: 85 }}
+              >
+                <XAxis 
+                  dataKey="name" 
+                  tickFormatter={(val) => val.length > 16 ? `${val.substring(0, 16)}...` : val}
+                  tick={{ fontSize: 10, fontWeight: 'bold', fill: '#0F172A' }} 
+                  interval={0}
+                  angle={-35}
+                  textAnchor="end"
+                  height={85}
+                />
+                <YAxis 
+                  tickFormatter={(v) => `$${v}M`} 
+                  tick={{ fontSize: 11, fill: '#475569' }} 
+                />
+                <Tooltip 
+                  formatter={(val: any) => [`$${Number(val).toFixed(2)}M`, 'Forecast ACV']}
+                  labelFormatter={(label) => `Business Unit: ${label}`}
+                  contentStyle={{ backgroundColor: '#FFFFFF', borderRadius: '12px', borderColor: '#CBD5E1', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 600 }}
+                />
+                <Bar 
+                  dataKey="amount" 
+                  name="Forecast ACV ($M)" 
+                  radius={[8, 8, 0, 0]}
+                  onClick={(data: any) => {
+                    if (data && data.name) {
+                      scrollToBuSection(data.name);
+                    }
+                  }}
+                  className="cursor-pointer"
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={selectedBuFilter === entry.name ? '#1E3A8A' : BU_BAR_COLORS[index % BU_BAR_COLORS.length]} 
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            )}
           </ResponsiveContainer>
         </div>
 
