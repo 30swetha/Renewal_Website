@@ -1,14 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Calendar, 
-  AlertTriangle, 
   TrendingUp, 
   TrendingDown, 
   Minus,
   Layers,
   X,
-  Clock,
-  CheckCircle2
+  Clock
 } from 'lucide-react';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
 import { useSharedDatasets, formatCurrencyM, type SharedOpportunity } from '../lib/sharedDataLayer';

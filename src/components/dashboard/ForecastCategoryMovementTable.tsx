@@ -4,14 +4,12 @@ import {
   TrendingDown, 
   ArrowRight, 
   ShieldCheck, 
-  Sparkles, 
   CheckCircle2, 
   ChevronRight, 
   X, 
   ExternalLink,
   Layers,
-  Calendar,
-  AlertTriangle
+  Calendar
 } from 'lucide-react';
 import { formatCurrencyM, useSharedDatasets, type SharedOpportunity } from '../../lib/sharedDataLayer';
 import { OpportunityDrawer } from '../ui/OpportunityDrawer';

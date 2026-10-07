@@ -1,21 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, 
-  Minus, 
   CheckCircle2, 
   Layers, 
   ChevronRight,
-  BarChart2,
   Activity,
   Filter,
   TrendingUp,
   TrendingDown,
   X,
-  ExternalLink,
   ShieldCheck
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
-import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpportunity, useSharedDatasets } from '../lib/sharedDataLayer';
+import { formatCurrencyM, type SharedOpportunity, useSharedDatasets } from '../lib/sharedDataLayer';
 import { Badge } from '../components/ui/Badge';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 

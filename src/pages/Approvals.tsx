@@ -4,11 +4,7 @@ import {
   Layers, 
   Activity, 
   BarChart2, 
-  CheckCircle2,
-  AlertCircle,
   ExternalLink,
-  ChevronDown,
-  ChevronUp,
   DollarSign
 } from 'lucide-react';
 import { 
