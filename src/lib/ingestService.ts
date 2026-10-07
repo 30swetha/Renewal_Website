@@ -19,11 +19,14 @@ export interface RawOpportunityInput {
   [key: string]: any;
 }
 
+import { excelSerialToDate } from './excelParser';
+
 /**
  * Normalizes Approval Status per specification brief:
  * - Replace every blank or empty [Opportunity Approval Status] with "Not yet proposed"
  * - Trim spaces in all approval status values
- * - Preserves Approved, Approved - 2nd, Pending Approval, Rejected
+ * - Preserves Approved, Approved - 2nd, Pending-Approval, Rejected
+ * - Unknown statuses show as "Other (unrecognised)"
  */
 export function normalizeApprovalStatus(raw?: string): string {
   if (!raw || typeof raw !== 'string' || raw.trim() === '') {
@@ -36,7 +39,7 @@ export function normalizeApprovalStatus(raw?: string): string {
     return 'Not yet proposed';
   }
   if (/^pending[-_\s]?approval$/i.test(clean) || lower.includes('pending')) {
-    return 'Pending Approval';
+    return 'Pending-Approval';
   }
   if (lower === 'approved' || lower === 'approval approved') {
     return 'Approved';
@@ -47,7 +50,7 @@ export function normalizeApprovalStatus(raw?: string): string {
   if (/^rejected$/i.test(clean) || lower.includes('reject')) {
     return 'Rejected';
   }
-  return clean;
+  return 'Other (unrecognised)';
 }
 
 /**
@@ -509,7 +512,7 @@ async function processSingleFile(
         region: String(row[colIndexMap['Sub-Region']] || 'Sub-Saharan Africa').trim(),
         sub_region: String(row[colIndexMap['Sub-Region']] || '').trim(),
         business_unit: String(row[colIndexMap['Business Unit']] || 'Enterprise').trim(),
-        close_date: String(row[colIndexMap['Close Date']] || '').trim(),
+        close_date: excelSerialToDate(row[colIndexMap['Close Date']]),
       });
     }
 

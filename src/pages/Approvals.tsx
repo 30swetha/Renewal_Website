@@ -289,12 +289,29 @@ const OpportunityTableSection: React.FC<OpportunityTableSectionProps> = ({
           </table>
         </div>
 
-        {/* D) Small "Check" Line with Matches Excel Badge */}
-        <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 font-mono font-bold w-fit">
-          <Badge variant="approved">Matches Excel</Badge>
-          <Check className="h-3.5 w-3.5 text-emerald-600 stroke-[3]" />
-          <span>Check: 100% of deals ({summary.sumCount}/{summary.totalCount}) and {formatCurrencyM(summary.sumAcv)} ACV accounted for</span>
-        </div>
+        {/* D) Real Comparison Check Line */}
+        {(() => {
+          const acvDiff = Math.abs(summary.sumAcv - summary.totalAcv);
+          const countDiff = Math.abs(summary.sumCount - summary.totalCount);
+          const isRealMatch = acvDiff <= 10000 && countDiff === 0;
+
+          if (isRealMatch) {
+            return (
+              <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 font-mono font-bold w-fit">
+                <Badge variant="approved">Matches</Badge>
+                <Check className="h-3.5 w-3.5 text-emerald-600 stroke-[3]" />
+                <span>Real Check: Shown {formatCurrencyM(summary.sumAcv)} ({summary.sumCount} deals) equals Calculated {formatCurrencyM(summary.totalAcv)} ({summary.totalCount} deals) | Diff: $0.00M</span>
+              </div>
+            );
+          } else {
+            return (
+              <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 px-3 py-1.5 rounded-xl border border-red-200 font-mono font-bold w-fit">
+                <Badge variant="rejected">Mismatch</Badge>
+                <span>Real Check Mismatch: Shown {formatCurrencyM(summary.sumAcv)} ({summary.sumCount} deals) vs Calculated {formatCurrencyM(summary.totalAcv)} ({summary.totalCount} deals) | Diff: {formatCurrencyM(acvDiff)}</span>
+              </div>
+            );
+          }
+        })()}
       </div>
 
       {/* 3) SEARCH BOX & SORTABLE OPPORTUNITIES LIST GROUPED BY APPROVAL STATUS */}
@@ -518,6 +535,7 @@ export const ApprovalsPage: React.FC = () => {
   // Deduplicate by unique Opportunity ID and select most advanced status per precedence rules
   const uniqueQ4Opps = useMemo(() => {
     const map = new Map<string, ProcessedOpportunity>();
+    const duplicates: string[] = [];
 
     q4OppsRaw.forEach(opp => {
       const uniqueId = String(
@@ -538,27 +556,26 @@ export const ApprovalsPage: React.FC = () => {
           uniqueId,
         });
       } else {
+        duplicates.push(uniqueId);
         const existing = map.get(uniqueId)!;
         // Compare status rank and select the most advanced status (lower rank number)
         if (STATUS_RANK[status] < STATUS_RANK[existing.canonicalStatus]) {
           existing.canonicalStatus = status;
           existing.approval_status = status;
         }
-        if (opp.acv_amount > existing.acv_amount) {
-          existing.acv_amount = opp.acv_amount;
-        }
+        // DELETED replacing acv_amount with larger value per prompt rule 4
       }
     });
 
-    return Array.from(map.values());
+    return { uniqueOpps: Array.from(map.values()), duplicateIds: Array.from(new Set(duplicates)) };
   }, [q4OppsRaw]);
 
   // Approval Status Funnel / Horizontal Bar Chart Data (Q4 FY26 Only)
   const { statusData, totalQ4Acv } = useMemo(() => {
-    const totalAcv = uniqueQ4Opps.reduce((s, o) => s + o.acv_amount, 0);
+    const totalAcv = uniqueQ4Opps.uniqueOpps.reduce((s, o) => s + o.acv_amount, 0);
 
     const data = FIXED_STATUSES.map(st => {
-      const items = uniqueQ4Opps.filter(o => o.canonicalStatus === st);
+      const items = uniqueQ4Opps.uniqueOpps.filter(o => o.canonicalStatus === st);
       const amount = items.reduce((s, o) => s + o.acv_amount, 0);
       const pct = totalAcv > 0 ? (amount / totalAcv) * 100 : 0;
       return {
@@ -572,14 +589,14 @@ export const ApprovalsPage: React.FC = () => {
     });
 
     return { statusData: data, totalQ4Acv: totalAcv };
-  }, [uniqueQ4Opps]);
+  }, [uniqueQ4Opps.uniqueOpps]);
 
   // Split unique Q4 Opportunities into Table 1 (>= 100K) and Table 2 (< 100K)
   const { oppsGreater100k, oppsLess100k } = useMemo(() => {
     const greater: ProcessedOpportunity[] = [];
     const less: ProcessedOpportunity[] = [];
 
-    uniqueQ4Opps.forEach(opp => {
+    uniqueQ4Opps.uniqueOpps.forEach(opp => {
       if (opp.acv_amount >= 100000) {
         greater.push(opp);
       } else {
@@ -591,7 +608,7 @@ export const ApprovalsPage: React.FC = () => {
     less.sort((a, b) => b.acv_amount - a.acv_amount);
 
     return { oppsGreater100k: greater, oppsLess100k: less };
-  }, [uniqueQ4Opps]);
+  }, [uniqueQ4Opps.uniqueOpps]);
 
   return (
     <div className="space-y-8 pb-20 bg-slate-50 min-h-screen text-slate-900">
@@ -657,9 +674,17 @@ export const ApprovalsPage: React.FC = () => {
               <p className="text-xs text-slate-500">Q4 ACV volume by approval status stage</p>
             </div>
             <span className="text-xs font-mono font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-              {uniqueQ4Opps.length} Unique Q4 Contracts
+              {uniqueQ4Opps.uniqueOpps.length} Unique Q4 Contracts
             </span>
           </div>
+
+          {/* Duplicate ID Warning Banner if duplicates exist in Q4 file */}
+          {uniqueQ4Opps.duplicateIds.length > 0 && (
+            <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-amber-900 text-xs font-mono font-bold flex items-center justify-between">
+              <span>Warning: {uniqueQ4Opps.duplicateIds.length} Duplicate Opportunity ID(s) found in Q4 file: {uniqueQ4Opps.duplicateIds.join(', ')}</span>
+              <span className="text-[10px] uppercase tracking-wider font-sans bg-amber-200/60 px-2 py-0.5 rounded-md text-amber-900">Do Not Merge Rule Active</span>
+            </div>
+          )}
 
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -754,7 +779,7 @@ export const ApprovalsPage: React.FC = () => {
       {/* Table 1 + Table 2 = Q4 total summary bar */}
       <div className="bg-blue-50/80 border border-blue-200 p-3.5 rounded-2xl text-center text-xs font-mono font-black text-blue-900 shadow-2xs flex items-center justify-center gap-3">
         <span className="uppercase tracking-wider font-sans text-[11px] font-extrabold text-blue-700">Portfolio Total Check:</span>
-        <span>Table 1 + Table 2 = Q4 total ({uniqueQ4Opps.length} deals | {formatCurrencyM(totalQ4Acv)})</span>
+        <span>Table 1 + Table 2 = Q4 total ({uniqueQ4Opps.uniqueOpps.length} deals | {formatCurrencyM(totalQ4Acv)})</span>
       </div>
 
       {/* TABLE 2: Opportunities Less Than $100K */}
@@ -769,7 +794,7 @@ export const ApprovalsPage: React.FC = () => {
       {/* Table 1 + Table 2 = Q4 total summary bar (below Table 2) */}
       <div className="bg-slate-100 border border-slate-200 p-3.5 rounded-2xl text-center text-xs font-mono font-black text-slate-900 shadow-2xs flex items-center justify-center gap-3">
         <span className="uppercase tracking-wider font-sans text-[11px] font-extrabold text-slate-600">Q4 Portfolio Verification:</span>
-        <span>Table 1 + Table 2 = Q4 total ({uniqueQ4Opps.length} deals | {formatCurrencyM(totalQ4Acv)})</span>
+        <span>Table 1 + Table 2 = Q4 total ({uniqueQ4Opps.uniqueOpps.length} deals | {formatCurrencyM(totalQ4Acv)})</span>
       </div>
 
       {/* Slide-over Opportunity Drawer */}

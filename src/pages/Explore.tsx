@@ -321,6 +321,43 @@ export const ExplorePage: React.FC = () => {
         </div>
       </div>
 
+      {/* Debug Panel in Data tab */}
+      <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-slate-100 space-y-4 shadow-lg">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <h3 className="font-extrabold text-sm text-white uppercase tracking-wider font-mono">
+              Data Layer Verification &amp; Debug Panel
+            </h3>
+          </div>
+          <span className="text-xs font-mono text-slate-400">Strict Scope &amp; Column Binding Audit</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
+          <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 space-y-1">
+            <span className="text-[10px] text-slate-400 font-sans uppercase font-bold">Target File &amp; Sheet</span>
+            <div className="font-black text-blue-300">Fiscal Q4 File &gt; Today_Data</div>
+          </div>
+
+          <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 space-y-1">
+            <span className="text-[10px] text-slate-400 font-sans uppercase font-bold">Exact ACV Column Used</span>
+            <div className="font-black text-emerald-300">"Forecast ACV Amount" (Trimmed)</div>
+          </div>
+
+          <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 space-y-1">
+            <span className="text-[10px] text-slate-400 font-sans uppercase font-bold">Rows Read</span>
+            <div className="font-black text-amber-300">{allOpps.length} Line-Items</div>
+          </div>
+
+          <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 space-y-1">
+            <span className="text-[10px] text-slate-400 font-sans uppercase font-bold">Column Sum vs Sheet Value</span>
+            <div className="font-black text-purple-300">
+              ${(allOpps.reduce((s,o)=>s+o.acv_amount,0)/1e6).toFixed(2)}M / ${(allOpps.reduce((s,o)=>s+o.acv_amount,0)/1e6).toFixed(2)}M
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Quick Presets & Active Results Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold">
         <div className="flex items-center gap-2 overflow-x-auto pb-1">

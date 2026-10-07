@@ -127,18 +127,33 @@ export function getSharedDataset(dateStr?: string): SharedOpportunity[] {
 
 
 /**
+ * Shared Accessor for Overview and Approvals pages.
+ * Reads ONLY the Fiscal Q4 file opportunities for target date.
+ * Filters EXACTLY on [Fiscal Period] === "Q4-2026" (normalizing "Q4 2026" to "Q4-2026").
+ * No includes('Q4'), no Service Expiry Period fallback, no expiry_quarter fallback.
+ */
+export function getFiscalQ4Dataset(dateStr?: string): SharedOpportunity[] {
+  const allOpps = getSharedDataset(dateStr);
+
+  return allOpps.filter(o => {
+    const rawPeriod = String(
+      o.json_data?.['Fiscal Period'] || o.fiscal_period || ''
+    ).trim();
+
+    const norm = rawPeriod === 'Q4 2026' ? 'Q4-2026' : rawPeriod;
+    return norm === 'Q4-2026';
+  });
+}
+
+/**
  * Filter Q4 FY26 opportunities and compute summary metrics
  */
 export function getQ4FY26Data(
   dateStr: string = '2026-10-06',
   filters: { businessUnit?: string; category?: string; region?: string } = {}
 ) {
-  const dataset = getSharedDataset(dateStr);
-
-  // 1. Base Q4 2026 Filter ([Fiscal Period] = Q4 2026 or Q4-2026)
-  let q4Opps = dataset.filter(o => 
-    o.fiscal_period === 'Q4 2026' || o.fiscal_period === 'Q4-2026' || o.expiry_quarter.includes('Q4')
-  );
+  const dataset = getFiscalQ4Dataset(dateStr);
+  let q4Opps = [...dataset];
 
   // 2. Apply Shared Toolbar Filters
   if (filters.businessUnit && filters.businessUnit !== 'All') {

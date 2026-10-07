@@ -15,6 +15,27 @@ const parseNum = (val: any): number => {
   return isNaN(num) ? 0 : num;
 };
 
+// Helper to convert Excel serial numbers or dates to ISO YYYY-MM-DD
+export function excelSerialToDate(val: any): string {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return val.toISOString().split('T')[0];
+  }
+  if (typeof val === 'number' && val > 20000 && val < 60000) {
+    const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+    return date.toISOString().split('T')[0];
+  }
+  const str = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    return str.substring(0, 10);
+  }
+  const dateObj = new Date(str);
+  if (!isNaN(dateObj.getTime())) {
+    return dateObj.toISOString().split('T')[0];
+  }
+  return str;
+}
+
 // Helper to match column names flexibly
 const findColIndex = (headers: string[], possibleNames: string[]): number => {
   const normNames = possibleNames.map(n => normalize(n));
