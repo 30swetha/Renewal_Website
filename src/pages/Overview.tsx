@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { formatCurrencyM, useSharedDatasets, type SharedOpportunity } from '../lib/sharedDataLayer';
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
-import { renderChangePhrase, renderChangePhraseShort } from '../lib/narrativeHelpers';
+import { renderPill } from '../lib/narrativeHelpers';
 
 // Fixed 6 regions in exact required order
 export const FIXED_REGIONS = [
@@ -309,8 +309,8 @@ export const OverviewPage: React.FC = () => {
   return (
     <div className="space-y-8 pb-20 bg-slate-50 min-h-screen text-slate-900">
       
-      {/* 1. Dynamic Executive Synthesis Narrative Banner */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+      {/* 1. Dynamic Executive Synthesis Briefing Card */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-6">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -323,57 +323,132 @@ export const OverviewPage: React.FC = () => {
           </span>
         </div>
 
-        {/* Narrative Paragraph Sentences Only */}
-        <div className="space-y-3.5 text-xs sm:text-sm text-slate-800 leading-relaxed font-normal">
-          
-          {/* Total */}
-          <div>
-            <strong className="font-extrabold text-slate-900 mr-1.5">Total:</strong>
-            <span>
-              The total Q4 renewal ACV value is <span className="font-mono font-black text-slate-900">{formatCurrencyM(totalQ4AcvToday)}</span>.
-            </span>
-          </div>
+        {/* 1) Headline (largest text) */}
+        <div className="flex items-baseline gap-3">
+          <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Q4 Renewal ACV:</span>
+          <span className="text-3xl sm:text-4xl font-black font-mono text-slate-900 tracking-tight">
+            {formatCurrencyM(totalQ4AcvToday)}
+          </span>
+        </div>
 
-          {/* Forecast categories */}
-          <div>
-            <strong className="font-extrabold text-slate-900 mr-1.5">Forecast categories:</strong>
-            <span>
-              Closed stands at <span className="font-mono font-black text-slate-900">{formatCurrencyM(closedMetrics.todayAcv)}</span>, which has {renderChangePhrase(closedMetrics.todayAcv, closedMetrics.yesterdayAcv, 'compared to yesterday')} and {renderChangePhrase(closedMetrics.todayAcv, closedMetrics.lastweekAcv, 'compared to last week')}. Commit is <span className="font-mono font-black text-slate-900">{formatCurrencyM(commitMetrics.todayAcv)}</span> ({renderChangePhraseShort(commitMetrics.todayAcv, commitMetrics.yesterdayAcv, 'vs yesterday')} and {renderChangePhraseShort(commitMetrics.todayAcv, commitMetrics.lastweekAcv, 'vs last week')}). Best Case is <span className="font-mono font-black text-slate-900">{formatCurrencyM(bestCaseMetrics.todayAcv)}</span> ({renderChangePhraseShort(bestCaseMetrics.todayAcv, bestCaseMetrics.yesterdayAcv, 'vs yesterday')} and {renderChangePhraseShort(bestCaseMetrics.todayAcv, bestCaseMetrics.lastweekAcv, 'vs last week')}). Pipeline is <span className="font-mono font-black text-slate-900">{formatCurrencyM(pipelineMetrics.todayAcv)}</span> ({renderChangePhraseShort(pipelineMetrics.todayAcv, pipelineMetrics.yesterdayAcv, 'vs yesterday')} and {renderChangePhraseShort(pipelineMetrics.todayAcv, pipelineMetrics.lastweekAcv, 'vs last week')}).
-            </span>
-          </div>
+        {/* 2) "Forecast" row of four compact blocks side by side */}
+        <div className="space-y-2">
+          <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">Forecast Breakdown:</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            {/* Closed */}
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
+              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Closed</div>
+              <div className="text-xl font-black font-mono text-slate-900">{formatCurrencyM(closedMetrics.todayAcv)}</div>
+              <div className="flex flex-col gap-1 pt-1">
+                {renderPill(closedMetrics.todayAcv - closedMetrics.yesterdayAcv, 'vs yesterday')}
+                {renderPill(closedMetrics.todayAcv - closedMetrics.lastweekAcv, 'vs last week')}
+              </div>
+            </div>
 
-          {/* Slippage */}
-          <div>
-            <strong className="font-extrabold text-slate-900 mr-1.5">Slippage:</strong>
-            <span>
-              Slippage to 2027 is <span className="font-mono font-black text-slate-900">{formatCurrencyM(slippedAcvToday)}</span>, which has {renderChangePhrase(slippedAcvToday, slippedAcvYesterday, 'compared to yesterday')} and {renderChangePhrase(slippedAcvToday, slippedAcvLastweek, 'compared to last week')}.
-            </span>
-          </div>
+            {/* Commit */}
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
+              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Commit</div>
+              <div className="text-xl font-black font-mono text-slate-900">{formatCurrencyM(commitMetrics.todayAcv)}</div>
+              <div className="flex flex-col gap-1 pt-1">
+                {renderPill(commitMetrics.todayAcv - commitMetrics.yesterdayAcv, 'vs yesterday')}
+                {renderPill(commitMetrics.todayAcv - commitMetrics.lastweekAcv, 'vs last week')}
+              </div>
+            </div>
 
-          {/* Proposal confirmation */}
-          <div>
-            <strong className="font-extrabold text-slate-900 block mb-1">Proposal confirmation:</strong>
-            <ul className="space-y-1 pl-3 border-l-2 border-slate-200 font-medium text-slate-700">
-              {proposalNarratives.map((item) => (
-                <li key={item.region}>
-                  <strong className="text-slate-900 font-bold">{item.region}:</strong> {item.total} opportunities are in the system for approval, of which {item.approved} are approved, {item.pending} are pending approval and {item.blank} are yet to be proposed.
-                </li>
-              ))}
-            </ul>
-          </div>
+            {/* Best Case */}
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
+              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Best Case</div>
+              <div className="text-xl font-black font-mono text-slate-900">{formatCurrencyM(bestCaseMetrics.todayAcv)}</div>
+              <div className="flex flex-col gap-1 pt-1">
+                {renderPill(bestCaseMetrics.todayAcv - bestCaseMetrics.yesterdayAcv, 'vs yesterday')}
+                {renderPill(bestCaseMetrics.todayAcv - bestCaseMetrics.lastweekAcv, 'vs last week')}
+              </div>
+            </div>
 
-          {/* Regional trend */}
-          <div>
-            <strong className="font-extrabold text-slate-900 block mb-1">Regional trend:</strong>
-            <ul className="space-y-1 pl-3 border-l-2 border-slate-200 font-medium text-slate-700">
-              {regionalTrendNarratives.map((item) => (
-                <li key={item.region}>
-                  <strong className="text-slate-900 font-bold">{item.region}:</strong> total ACV is <span className="font-mono font-bold">{formatCurrencyM(item.total)}</span>, with <span className="font-mono font-bold">{formatCurrencyM(item.closed)}</span> Closed, <span className="font-mono font-bold">{formatCurrencyM(item.commit)}</span> Commit, <span className="font-mono font-bold">{formatCurrencyM(item.bc)}</span> Best Case and <span className="font-mono font-bold">{formatCurrencyM(item.pipeline)}</span> Pipeline.
-                </li>
-              ))}
-            </ul>
-          </div>
+            {/* Pipeline */}
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
+              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Pipeline</div>
+              <div className="text-xl font-black font-mono text-slate-900">{formatCurrencyM(pipelineMetrics.todayAcv)}</div>
+              <div className="flex flex-col gap-1 pt-1">
+                {renderPill(pipelineMetrics.todayAcv - pipelineMetrics.yesterdayAcv, 'vs yesterday')}
+                {renderPill(pipelineMetrics.todayAcv - pipelineMetrics.lastweekAcv, 'vs last week')}
+              </div>
+            </div>
 
+          </div>
+        </div>
+
+        {/* 3) Slippage line */}
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500">Slippage to 2027:</span>
+            <span className="text-2xl font-black font-mono text-slate-900">{formatCurrencyM(slippedAcvToday)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {renderPill(slippedAcvToday - slippedAcvYesterday, 'vs yesterday')}
+            {renderPill(slippedAcvToday - slippedAcvLastweek, 'vs last week')}
+          </div>
+        </div>
+
+        {/* 4) "Proposal Confirmation" as compact one-line rows */}
+        <div className="space-y-2 pt-2 border-t border-slate-100">
+          <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">Proposal Confirmation:</div>
+          <div className="space-y-1 overflow-x-auto">
+            {proposalNarratives.map((item) => (
+              <div key={item.region} className="flex items-center text-xs py-1.5 px-3 bg-slate-50/60 rounded-xl border border-slate-100 whitespace-nowrap min-w-max">
+                <span className="font-black text-slate-900 w-52 shrink-0">{item.region}</span>
+                <span className="text-slate-300 mx-2">&bull;</span>
+                <span className="text-slate-400 font-medium">
+                  <strong className={`font-mono font-black ${item.total > 0 ? 'text-slate-900' : 'text-slate-400'}`}>{item.total}</strong> in system
+                </span>
+                <span className="text-slate-300 mx-2">&bull;</span>
+                <span className="text-slate-400 font-medium">
+                  <strong className={`font-mono font-black ${item.approved > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>{item.approved}</strong> Approved
+                </span>
+                <span className="text-slate-300 mx-2">&bull;</span>
+                <span className="text-slate-400 font-medium">
+                  <strong className={`font-mono font-black ${item.pending > 0 ? 'text-amber-700' : 'text-slate-400'}`}>{item.pending}</strong> Pending
+                </span>
+                <span className="text-slate-300 mx-2">&bull;</span>
+                <span className="text-slate-400 font-medium">
+                  <strong className={`font-mono font-black ${item.blank > 0 ? 'text-slate-700' : 'text-slate-400'}`}>{item.blank}</strong> Yet to propose
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 5) "Regional Trend" as compact one-line rows */}
+        <div className="space-y-2 pt-2 border-t border-slate-100">
+          <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">Regional Trend:</div>
+          <div className="space-y-1 overflow-x-auto">
+            {regionalTrendNarratives.map((item) => (
+              <div key={item.region} className="flex items-center text-xs py-1.5 px-3 bg-slate-50/60 rounded-xl border border-slate-100 whitespace-nowrap min-w-max">
+                <span className="font-black text-slate-900 w-52 shrink-0">{item.region}</span>
+                <span className="text-slate-300 mx-2">&bull;</span>
+                <span className="text-slate-400 font-medium">
+                  <strong className="font-mono font-black text-slate-900">{formatCurrencyM(item.total)}</strong> total
+                </span>
+                <span className="text-slate-300 mx-2">&bull;</span>
+                <span className="text-slate-400 font-medium">
+                  Closed <strong className={`font-mono font-black ${item.closed > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>{formatCurrencyM(item.closed)}</strong>
+                </span>
+                <span className="text-slate-300 mx-2">&bull;</span>
+                <span className="text-slate-400 font-medium">
+                  Commit <strong className={`font-mono font-black ${item.commit > 0 ? 'text-blue-700' : 'text-slate-400'}`}>{formatCurrencyM(item.commit)}</strong>
+                </span>
+                <span className="text-slate-300 mx-2">&bull;</span>
+                <span className="text-slate-400 font-medium">
+                  Best Case <strong className={`font-mono font-black ${item.bc > 0 ? 'text-purple-700' : 'text-slate-400'}`}>{formatCurrencyM(item.bc)}</strong>
+                </span>
+                <span className="text-slate-300 mx-2">&bull;</span>
+                <span className="text-slate-400 font-medium">
+                  Pipeline <strong className={`font-mono font-black ${item.pipeline > 0 ? 'text-amber-700' : 'text-slate-400'}`}>{formatCurrencyM(item.pipeline)}</strong>
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
 
       </div>
