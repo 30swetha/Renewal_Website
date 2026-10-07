@@ -100,7 +100,6 @@ export const OverviewPage: React.FC = () => {
   const totalQ4AcvLastweek = useMemo(() => q4Lastweek.reduce((s, o) => s + o.acv_amount, 0), [q4Lastweek]);
 
   const totalCountToday = q4Today.length;
-  const totalCountYesterday = q4Yesterday.length;
 
   // SECTION 2: Four Fixed Category Cards (Closed, Commit, Best Case, Pipeline)
   const getCategoryMetrics = (category: string) => {
@@ -139,24 +138,6 @@ export const OverviewPage: React.FC = () => {
   const slippedAcvToday = slippedToday.reduce((s, o) => s + o.acv_amount, 0);
   const slippedAcvYesterday = slippedYesterday.reduce((s, o) => s + o.acv_amount, 0);
   const slippedAcvLastweek = slippedLastweek.reduce((s, o) => s + o.acv_amount, 0);
-
-  // Executive Synthesis Narrative Sentences
-  const narrativeSentences = useMemo(() => {
-    const netYesterdayAcv = totalQ4AcvToday - totalQ4AcvYesterday;
-    const countYesterday = totalCountToday - totalCountYesterday;
-
-    const s1 = `Total active Q4 FY26 ACV pipeline stands at ${formatCurrencyM(totalQ4AcvToday)} across ${totalCountToday.toLocaleString()} contracts, showing a net change of ${netYesterdayAcv >= 0 ? '+' : ''}${formatCurrencyM(netYesterdayAcv)} (${countYesterday >= 0 ? '+' : ''}${countYesterday} deals) vs yesterday.`;
-    
-    const s2 = `Closed revenue has reached ${formatCurrencyM(closedMetrics.todayAcv)} (${closedMetrics.todayCount} deals), while Commit holds ${formatCurrencyM(commitMetrics.todayAcv)} (${commitMetrics.todayCount} deals).`;
-
-    const s3 = `Best Case and Pipeline hold ${formatCurrencyM(bestCaseMetrics.todayAcv)} and ${formatCurrencyM(pipelineMetrics.todayAcv)} respectively.`;
-    
-    const pendingCount = q4Today.filter(o => o.approval_status.includes('Pending')).length;
-    const pendingAcv = q4Today.filter(o => o.approval_status.includes('Pending')).reduce((s, o) => s + o.acv_amount, 0);
-    const s4 = `A total of ${pendingCount} Q4 opportunities valued at ${formatCurrencyM(pendingAcv)} are currently in Pending-Approval status awaiting sign-off.`;
-
-    return [s1, s2, s3, s4];
-  }, [totalQ4AcvToday, totalQ4AcvYesterday, totalCountToday, totalCountYesterday, closedMetrics, commitMetrics, bestCaseMetrics, pipelineMetrics, q4Today]);
 
   // SECTION 4: Proposal Confirmation Table Data
   const proposalTableData = useMemo(() => {
@@ -274,30 +255,190 @@ export const OverviewPage: React.FC = () => {
     <div className="space-y-8 pb-20 bg-slate-50 min-h-screen text-slate-900">
       
       {/* 1. Dynamic Executive Synthesis Narrative Banner */}
-      <div className="bg-gradient-to-r from-blue-50 via-slate-50 to-indigo-50/70 p-6 rounded-3xl text-slate-900 shadow-sm border border-slate-200 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-blue-700 font-extrabold text-xs uppercase tracking-wider">
-            <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
-            <span>Today's Executive Synthesis &bull; Q4 FY26 Overview</span>
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-6 sm:p-8 rounded-3xl text-white shadow-lg border border-slate-700/70 space-y-6">
+        
+        {/* Top Title Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-700/80 pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-amber-400 font-black text-xs uppercase tracking-widest">
+              <Sparkles className="h-4 w-4 text-amber-400 animate-pulse" />
+              <span>Today's Executive Synthesis &bull; Q4 FY26 Overview</span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              Executive Renewal Intelligence &amp; Performance Summary
+            </h2>
           </div>
-          <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            <span>Fixed Dashboard Template</span>
+          <span className="px-3.5 py-1.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-bold font-mono self-start sm:self-auto">
+            Live Excel Feed Sync
           </span>
         </div>
 
-        {/* Narrative Paragraph Summary */}
-        <div className="space-y-2 pt-1 border-t border-slate-200/60">
-          <h2 className="text-sm font-black text-slate-900 uppercase tracking-wide">Key Changes Narrative:</h2>
-          <div className="text-xs sm:text-sm text-slate-700 leading-relaxed space-y-1.5 font-medium">
-            {narrativeSentences.map((sentence, idx) => (
-              <p key={idx} className="flex items-start gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-600 shrink-0 mt-2" />
-                <span>{sentence}</span>
-              </p>
-            ))}
+        {/* Narrative Portfolio Highlights */}
+        <div className="space-y-3 bg-slate-800/80 p-5 rounded-2xl border border-slate-700">
+          <h3 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
+            <Layers className="h-4 w-4 text-amber-400" />
+            <span>Key Portfolio &amp; Movement Narrative</span>
+          </h3>
+
+          <div className="text-xs sm:text-sm text-slate-200 leading-relaxed space-y-3 font-medium">
+            
+            {/* Total Renewal Q4 ACV Value */}
+            <div className="flex items-start gap-2.5">
+              <span className="h-2 w-2 rounded-full bg-blue-400 shrink-0 mt-2" />
+              <div>
+                <strong className="text-white font-extrabold">Total Renewal Q4 ACV Value:</strong>{' '}
+                <span className="font-mono font-black text-blue-300">{formatCurrencyM(totalQ4AcvToday)}</span> across{' '}
+                <span className="font-mono font-bold text-white">{totalCountToday} active contracts</span>.
+              </div>
+            </div>
+
+            {/* Category Breakdown */}
+            <div className="flex items-start gap-2.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0 mt-2" />
+              <div className="space-y-1.5 w-full">
+                <strong className="text-white font-extrabold">Forecast Category Breakdown:</strong>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 font-mono text-xs">
+                  <li className="bg-emerald-950/60 p-3 rounded-xl border border-emerald-700/50 space-y-1">
+                    <div className="text-[10px] text-emerald-400 uppercase font-black">Closed</div>
+                    <div className="font-black text-emerald-300 text-base">{formatCurrencyM(closedMetrics.todayAcv)}</div>
+                    <div className="text-[10px] text-slate-300 font-bold">{closedMetrics.todayCount} deals</div>
+                    <div className="text-[10px] text-emerald-300 font-sans mt-1.5 pt-1.5 border-t border-emerald-800/50 space-y-0.5">
+                      <div>vs Yesterday: <strong className="font-black">{closedMetrics.todayAcv - closedMetrics.yesterdayAcv >= 0 ? '+' : ''}{formatCurrencyM(closedMetrics.todayAcv - closedMetrics.yesterdayAcv)}</strong></div>
+                      <div>vs Last Week: <strong className="font-black">{closedMetrics.todayAcv - closedMetrics.lastweekAcv >= 0 ? '+' : ''}{formatCurrencyM(closedMetrics.todayAcv - closedMetrics.lastweekAcv)}</strong></div>
+                    </div>
+                  </li>
+
+                  <li className="bg-blue-950/60 p-3 rounded-xl border border-blue-700/50 space-y-1">
+                    <div className="text-[10px] text-blue-400 uppercase font-black">Commit</div>
+                    <div className="font-black text-blue-300 text-base">{formatCurrencyM(commitMetrics.todayAcv)}</div>
+                    <div className="text-[10px] text-slate-300 font-bold">{commitMetrics.todayCount} deals</div>
+                  </li>
+
+                  <li className="bg-purple-950/60 p-3 rounded-xl border border-purple-700/50 space-y-1">
+                    <div className="text-[10px] text-purple-400 uppercase font-black">Best Case (BC)</div>
+                    <div className="font-black text-purple-300 text-base">{formatCurrencyM(bestCaseMetrics.todayAcv)}</div>
+                    <div className="text-[10px] text-slate-300 font-bold">{bestCaseMetrics.todayCount} deals</div>
+                  </li>
+
+                  <li className="bg-amber-950/60 p-3 rounded-xl border border-amber-700/50 space-y-1">
+                    <div className="text-[10px] text-amber-400 uppercase font-black">Pipeline</div>
+                    <div className="font-black text-amber-300 text-base">{formatCurrencyM(pipelineMetrics.todayAcv)}</div>
+                    <div className="text-[10px] text-slate-300 font-bold">{pipelineMetrics.todayCount} deals</div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Slippage to 2027 */}
+            <div className="flex items-start gap-2.5 pt-1">
+              <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0 mt-2" />
+              <div>
+                <strong className="text-white font-extrabold">Slippage to 2027:</strong>{' '}
+                <span className="font-mono font-black text-amber-300">{formatCurrencyM(slippedAcvToday)}</span> across{' '}
+                <span className="font-mono font-bold text-white">{slippedToday.length} deals</span> &bull;{' '}
+                <span className="text-amber-200 font-sans">
+                  Increased/changed by <strong className="font-mono font-bold">{slippedAcvToday - slippedAcvYesterday >= 0 ? '+' : ''}{formatCurrencyM(slippedAcvToday - slippedAcvYesterday)}</strong> vs yesterday and{' '}
+                  <strong className="font-mono font-bold">{slippedAcvToday - slippedAcvLastweek >= 0 ? '+' : ''}{formatCurrencyM(slippedAcvToday - slippedAcvLastweek)}</strong> vs last week.
+                </span>
+              </div>
+            </div>
+
           </div>
         </div>
+
+        {/* Proposal Confirmation for Each Region */}
+        <div className="space-y-3 pt-1">
+          <div className="flex items-center justify-between border-b border-slate-700/80 pb-2">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <FileCheck2 className="h-4 w-4 text-blue-400" />
+              <span>Proposal Confirmation for Each Region</span>
+            </h3>
+            <span className="text-[10.5px] text-slate-400 font-mono">Opportunity Approval Counts</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-center border-collapse text-xs bg-slate-800/90 rounded-2xl overflow-hidden border border-slate-700">
+              <thead>
+                <tr className="bg-slate-900/90 text-slate-300 font-black uppercase tracking-wider text-[10.5px]">
+                  <th className="py-3 px-4 text-left">Region</th>
+                  <th className="py-3 px-4 text-blue-300">Total Opp Approval in System</th>
+                  <th className="py-3 px-4 text-emerald-400">Approved</th>
+                  <th className="py-3 px-4 text-amber-400">Pending Approval</th>
+                  <th className="py-3 px-4 text-slate-400">Blanks (Yet to be proposed)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700/60 font-mono">
+                {proposalTableData.map(r => (
+                  <tr key={r.region} className="hover:bg-slate-700/40">
+                    <td className="py-2.5 px-4 text-left font-black text-white font-sans">{r.region}</td>
+                    <td className="py-2.5 px-4 font-black text-blue-300">{r.totalSystem}</td>
+                    <td className="py-2.5 px-4 font-extrabold text-emerald-400">{r.approvedCount}</td>
+                    <td className="py-2.5 px-4 font-extrabold text-amber-400">{r.pendingCount}</td>
+                    <td className="py-2.5 px-4 font-bold text-slate-400">{r.blanksCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-900 text-white font-black font-mono border-t-2 border-slate-700">
+                  <td className="py-3 px-4 text-left font-sans uppercase tracking-wider text-slate-300">Total</td>
+                  <td className="py-3 px-4 text-blue-300">{proposalTotals.totalSystem}</td>
+                  <td className="py-3 px-4 text-emerald-400">{proposalTotals.approvedCount}</td>
+                  <td className="py-3 px-4 text-amber-400">{proposalTotals.pendingCount}</td>
+                  <td className="py-3 px-4 text-slate-400">{proposalTotals.blanksCount}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        {/* Regional Trend Table */}
+        <div className="space-y-3 pt-1">
+          <div className="flex items-center justify-between border-b border-slate-700/80 pb-2">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <Globe2 className="h-4 w-4 text-blue-400" />
+              <span>Regional Trend</span>
+            </h3>
+            <span className="text-[10.5px] text-slate-400 font-mono">ACV Breakdown in USD Millions ($M)</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-center border-collapse text-xs bg-slate-800/90 rounded-2xl overflow-hidden border border-slate-700">
+              <thead>
+                <tr className="bg-slate-900/90 text-slate-300 font-black uppercase tracking-wider text-[10.5px]">
+                  <th className="py-3 px-4 text-left">Region</th>
+                  <th className="py-3 px-4 text-blue-300">Total ACV Value</th>
+                  <th className="py-3 px-4 text-emerald-400">Closed</th>
+                  <th className="py-3 px-4 text-blue-300">Commit</th>
+                  <th className="py-3 px-4 text-purple-300">Best Case</th>
+                  <th className="py-3 px-4 text-amber-300">Pipeline</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700/60 font-mono">
+                {regionalTrendData.map(r => (
+                  <tr key={r.region} className="hover:bg-slate-700/40">
+                    <td className="py-2.5 px-4 text-left font-black text-white font-sans">{r.region}</td>
+                    <td className="py-2.5 px-4 font-black text-blue-300">{formatCurrencyM(r.totalAcv)}</td>
+                    <td className="py-2.5 px-4 font-extrabold text-emerald-400">{formatCurrencyM(r.closedAcv)}</td>
+                    <td className="py-2.5 px-4 font-extrabold text-blue-300">{formatCurrencyM(r.commitAcv)}</td>
+                    <td className="py-2.5 px-4 font-extrabold text-purple-300">{formatCurrencyM(r.bestCaseAcv)}</td>
+                    <td className="py-2.5 px-4 font-extrabold text-amber-300">{formatCurrencyM(r.pipelineAcv)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-900 text-white font-black font-mono border-t-2 border-slate-700">
+                  <td className="py-3 px-4 text-left font-sans uppercase tracking-wider text-slate-300">Total</td>
+                  <td className="py-3 px-4 text-blue-300">{formatCurrencyM(regionalTrendTotals.totalAcv)}</td>
+                  <td className="py-3 px-4 text-emerald-400">{formatCurrencyM(regionalTrendTotals.closedAcv)}</td>
+                  <td className="py-3 px-4 text-blue-300">{formatCurrencyM(regionalTrendTotals.commitAcv)}</td>
+                  <td className="py-3 px-4 text-purple-300">{formatCurrencyM(regionalTrendTotals.bestCaseAcv)}</td>
+                  <td className="py-3 px-4 text-amber-300">{formatCurrencyM(regionalTrendTotals.pipelineAcv)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
       </div>
 
       {/* Warning banner if an unmapped region string exists */}
