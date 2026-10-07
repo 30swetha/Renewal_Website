@@ -10,6 +10,17 @@ import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpport
 import { Badge } from '../components/ui/Badge';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 
+const BU_BAR_COLORS = [
+  '#2563EB', // Royal Blue
+  '#10B981', // Emerald Green
+  '#8B5CF6', // Purple
+  '#F59E0B', // Amber / Gold
+  '#06B6D4', // Cyan
+  '#EC4899', // Pink
+  '#0D9488', // Teal
+  '#6366F1', // Indigo
+];
+
 export const BusinessUnitsPage: React.FC = () => {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
   const [selectedBuFilter, setSelectedBuFilter] = useState<string>('All');
@@ -155,7 +166,7 @@ export const BusinessUnitsPage: React.FC = () => {
                 {chartData.map((entry, index) => (
                   <Cell 
                     key={`cell-${index}`} 
-                    fill={selectedBuFilter === entry.name ? '#1E40AF' : (index % 2 === 0 ? '#2563EB' : '#3B82F6')} 
+                    fill={selectedBuFilter === entry.name ? '#1E3A8A' : BU_BAR_COLORS[index % BU_BAR_COLORS.length]} 
                   />
                 ))}
               </Bar>
@@ -166,12 +177,13 @@ export const BusinessUnitsPage: React.FC = () => {
         {/* Quick Jump BU Button Pills */}
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
           <span className="text-xs text-slate-400 font-bold mr-1">Quick Jump:</span>
-          {buSummaries.map(item => (
+          {buSummaries.map((item, idx) => (
             <button
               key={item.buName}
               onClick={() => scrollToBuSection(item.buName)}
-              className="px-3 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-900 border border-slate-200 hover:border-blue-300 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+              className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
+              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: BU_BAR_COLORS[idx % BU_BAR_COLORS.length] }} />
               <span>{item.buName}</span>
               <span className="font-mono text-[10px] text-slate-400">({formatCurrencyM(item.totalAcv)})</span>
             </button>
