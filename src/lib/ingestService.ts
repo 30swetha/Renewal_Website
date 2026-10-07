@@ -318,7 +318,7 @@ function findSheetByName(sheetNames: string[], targetName: string): string | und
 
 const REQUIRED_COLUMNS_SPEC = [
   { name: 'Opportunity ID 18 Digit', aliases: ['opportunity id 18 digit', 'opportunity id', 'opp id', 'id'] },
-  { name: 'Forecast ACV Amount', aliases: ['forecast acv amount', 'acv amount', 'acv', 'amount', 'val', 'forecast acv'] },
+  { name: 'Forecast ACV Amount', aliases: ['forecast acv amount', 'forecast acv', 'acv amount', 'acv'] },
   { name: 'Forecast Category', aliases: ['forecast category', 'category', 'status category'] },
   { name: 'Opportunity Approval Status', aliases: ['opportunity approval status', 'approval status', 'approvalstatus', 'status'] },
   { name: 'Business Unit', aliases: ['business unit', 'bu'] },
@@ -507,11 +507,26 @@ async function processSingleFile(
       const rawStatus = row[colIndexMap['Opportunity Approval Status']];
       const cleanedStatus = normalizeApprovalStatus(rawStatus ? String(rawStatus) : '');
 
+      const rowObj: Record<string, any> = {};
+      headers.forEach((h, idx) => {
+        if (h && row[idx] !== undefined) {
+          rowObj[h] = row[idx];
+        }
+      });
+
+      let forecastAcvVal = row[colIndexMap['Forecast ACV Amount']];
+      if (forecastAcvVal === undefined || forecastAcvVal === null || forecastAcvVal === '') {
+        forecastAcvVal = rowObj['Forecast ACV Amount'] || rowObj['forecast acv amount'] || 0;
+      }
+      if (typeof forecastAcvVal === 'string') {
+        forecastAcvVal = parseFloat(forecastAcvVal.replace(/[^0-9.-]+/g, '')) || 0;
+      }
+
       parsedOpps.push({
         opportunity_id: oppId,
-        opportunity_name: `Opportunity ${oppId}`,
-        account_name: `Account ${oppId}`,
-        acv_amount: row[colIndexMap['Forecast ACV Amount']],
+        opportunity_name: String(rowObj['Opportunity Name'] || `Opportunity ${oppId}`).trim(),
+        account_name: String(rowObj['Account Name'] || `Account ${oppId}`).trim(),
+        acv_amount: Number(forecastAcvVal) || 0,
         forecast_category: normalizeForecastCategory(String(row[colIndexMap['Forecast Category']] || 'Pipeline')),
         approval_status: cleanedStatus,
         fiscal_period: String(row[colIndexMap['Fiscal Period']] || 'Q4-2026').trim(),
@@ -520,6 +535,7 @@ async function processSingleFile(
         sub_region: String(row[colIndexMap['Sub-Region']] || '').trim(),
         business_unit: String(row[colIndexMap['Business Unit']] || 'Enterprise').trim(),
         close_date: excelSerialToDate(row[colIndexMap['Close Date']]),
+        json_data: rowObj,
       });
     }
 

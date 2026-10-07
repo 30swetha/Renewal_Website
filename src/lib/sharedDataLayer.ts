@@ -55,17 +55,19 @@ export function setGlobalHeaderFilters(filters: Partial<GlobalHeaderFilters>) {
 export function matchesGlobalFilters(opp: SharedOpportunity, filters?: GlobalHeaderFilters): boolean {
   const f = filters || getGlobalHeaderFilters();
 
-  // 1. Sales Type Filter (Enforce Renewals)
+  // 1. Sales Type Filter (Filter strictly based on Sales Type column, include ONLY Sales Type = Renewal)
   if (f.salesType === 'Renewals') {
-    const st = String(
-      opp.json_data?.['Sales Type'] || 
-      opp.json_data?.['Type'] || 
-      opp.json_data?.['Opportunity Type'] || 
-      'Renewals'
-    ).trim().toLowerCase();
+    const rawSalesType = opp.json_data?.['Sales Type'] !== undefined 
+      ? opp.json_data['Sales Type'] 
+      : (opp.json_data?.['sales_type'] || (opp as any).sales_type || '');
+
+    const st = String(rawSalesType).trim().toLowerCase();
     
-    if (st && !st.includes('renewal') && !st.includes('ren')) {
-      return false;
+    // Do not include Cross Cell, Upsell, New Logo, or any other Sales Type
+    if (st) {
+      if (st.includes('cross') || st.includes('upsell') || st.includes('new') || (!st.includes('renewal') && !st.includes('ren'))) {
+        return false;
+      }
     }
   }
 
@@ -176,7 +178,9 @@ function parseSheetRowsToOpps(rows: any[]): SharedOpportunity[] {
   if (!rows || rows.length === 0) return [];
   return rows.map((raw, index) => {
     const oppId = String(raw['Opportunity ID 18 Digit'] || raw['Opportunity ID'] || raw['opp_id'] || `OPP-SHEET-${index}`).trim();
-    let rawAcv = raw['Forecast ACV Amount'] !== undefined ? raw['Forecast ACV Amount'] : raw['ACV Amount'] || raw['ACV'] || 0;
+    let rawAcv = raw['Forecast ACV Amount'] !== undefined 
+      ? raw['Forecast ACV Amount'] 
+      : (raw['forecast acv amount'] !== undefined ? raw['forecast acv amount'] : (raw['ACV Amount'] || raw['ACV'] || 0));
     if (typeof rawAcv === 'string') {
       rawAcv = parseFloat(rawAcv.replace(/[^0-9.-]+/g, '')) || 0;
     }
@@ -285,6 +289,14 @@ export function getSharedDataset(dateStr: string = '2026-10-06', scope: string =
 
   const mapped = rawOpps.map(o => {
     const raw = o.json_data || {};
+
+    let rawAcv = raw['Forecast ACV Amount'] !== undefined 
+      ? raw['Forecast ACV Amount'] 
+      : (raw['forecast acv amount'] !== undefined ? raw['forecast acv amount'] : o.acv_amount);
+    if (typeof rawAcv === 'string') {
+      rawAcv = parseFloat(rawAcv.replace(/[^0-9.-]+/g, '')) || 0;
+    }
+
     const startDate = String(raw['Service Start Date'] || raw['service_start_date'] || '2026-01-01');
     const endDate = String(raw['Service End Date'] || raw['service_end_date'] || '2026-12-31');
     const closeDate = String(raw['Close Date'] || raw['close_date'] || (o.forecast_category === 'Closed' ? '2026-09-30' : '2026-11-15'));
@@ -301,6 +313,7 @@ export function getSharedDataset(dateStr: string = '2026-10-06', scope: string =
 
     return {
       ...o,
+      acv_amount: Number(rawAcv) || 0,
       approval_status: o.approval_status || 'Not yet proposed',
       service_start_date: startDate,
       service_end_date: endDate,
