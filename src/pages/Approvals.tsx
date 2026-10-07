@@ -4,7 +4,12 @@ import {
   Layers, 
   Activity, 
   BarChart2, 
-  Grid
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  DollarSign
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -16,27 +21,40 @@ import {
   Cell 
 } from 'recharts';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
-import { GlobalFilterBar, INITIAL_FILTERS, filterOpportunities, type GlobalFilterState } from '../components/ui/GlobalFilterBar';
 import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpportunity } from '../lib/sharedDataLayer';
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
+import { Badge } from '../components/ui/Badge';
 
 export const ApprovalsPage: React.FC = () => {
-  const [filters, setFilters] = useState<GlobalFilterState>(INITIAL_FILTERS);
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
   const [showMovementAnalysis, setShowMovementAnalysis] = useState(false);
 
   const refreshKey = useDatasetRefresh();
 
-  // Load raw dataset for Today (latest)
+  // Load raw dataset for Today (latest snapshot)
   const rawTodayOpps = useMemo(() => getSharedDataset(), [refreshKey]);
 
+  // Scope: Q4 Fiscal 2026 ONLY ([Fiscal Period] = Q4 2026 / Q4-2026)
+  const q4TodayOpps = useMemo(() => {
+    return rawTodayOpps.filter(o => {
+      const rawPeriod = String(
+        o.fiscal_period || 
+        (o.json_data && (o.json_data['Fiscal Period'] || o.json_data['Service Expiry Period'])) || 
+        o.expiry_quarter || 
+        ''
+      ).trim();
 
-  // Filter datasets based on global filter bar
-  const todayOpps = useMemo(() => filterOpportunities(rawTodayOpps, filters), [rawTodayOpps, filters]);
+      return (
+        rawPeriod === 'Q4 2026' || 
+        rawPeriod === 'Q4-2026' || 
+        rawPeriod.includes('Q4') ||
+        o.expiry_quarter.includes('Q4')
+      );
+    });
+  }, [rawTodayOpps]);
 
-  // Approval Status List
-  const approvalStatuses = ['Approved', 'Approved - 2nd', 'Pending-Approval', 'Blank', 'Rejected'];
-  const categories = ['Closed', 'Commit', 'Best Case', 'Pipeline'];
+  // 5 Canonical Approval Statuses in required order
+  const approvalStatuses = ['Approved', 'Approved - 2nd', 'Pending-Approval', 'Blank', 'Rejected'] as const;
 
   const statusColors: Record<string, string> = {
     Approved: '#10B981',
@@ -46,22 +64,23 @@ export const ApprovalsPage: React.FC = () => {
     Rejected: '#EF4444',
   };
 
-  // Helper to normalize status string from record
-  const getNormalizedStatus = (statusStr: string): string => {
-    const s = (statusStr || 'Blank').trim();
+  // Helper to normalize status string from record into 5 canonical statuses
+  const getNormalizedStatus = (statusStr?: string | null): typeof approvalStatuses[number] => {
+    if (!statusStr) return 'Blank';
+    const s = statusStr.trim();
     if (s === 'Approved') return 'Approved';
-    if (s.includes('2nd') || s.includes('Approved-2nd')) return 'Approved - 2nd';
+    if (s.includes('2nd') || s.includes('Approved-2nd') || s.includes('Approved - 2nd')) return 'Approved - 2nd';
     if (s.includes('Pending')) return 'Pending-Approval';
     if (s === 'Rejected') return 'Rejected';
     return 'Blank';
   };
 
-  // 1. Approval Status Funnel / Horizontal Bar Chart Data & Status Table
-  const { statusData, totalFilteredAcv } = useMemo(() => {
-    const totalAcv = todayOpps.reduce((s, o) => s + o.acv_amount, 0);
+  // 1. Approval Status Funnel / Horizontal Bar Chart Data (Q4 FY26 Only)
+  const { statusData, totalQ4Acv } = useMemo(() => {
+    const totalAcv = q4TodayOpps.reduce((s, o) => s + o.acv_amount, 0);
 
     const data = approvalStatuses.map(st => {
-      const items = todayOpps.filter(o => getNormalizedStatus(o.approval_status) === st);
+      const items = q4TodayOpps.filter(o => getNormalizedStatus(o.approval_status) === st);
       const amount = items.reduce((s, o) => s + o.acv_amount, 0);
       const pct = totalAcv > 0 ? (amount / totalAcv) * 100 : 0;
       return {
@@ -74,35 +93,198 @@ export const ApprovalsPage: React.FC = () => {
       };
     });
 
-    return { statusData: data, totalFilteredAcv: totalAcv };
-  }, [todayOpps]);
+    return { statusData: data, totalQ4Acv: totalAcv };
+  }, [q4TodayOpps]);
 
-  // 2. Approval & Category Analysis Matrix (Rows = Approval Status, Cols = Forecast Category)
-  const matrixData = useMemo(() => {
-    const matrix: Record<string, Record<string, { amount: number; count: number; opps: SharedOpportunity[] }>> = {};
+  // 2. Split Q4 Opportunities by Forecast ACV Amount (> 100K vs < 100K)
+  const { oppsGreater100k, oppsLess100k } = useMemo(() => {
+    const greater: SharedOpportunity[] = [];
+    const less: SharedOpportunity[] = [];
 
-    approvalStatuses.forEach(st => {
-      matrix[st] = {};
-      categories.forEach(cat => {
-        matrix[st][cat] = { amount: 0, count: 0, opps: [] };
-      });
-    });
-
-    todayOpps.forEach(opp => {
-      const st = getNormalizedStatus(opp.approval_status);
-      const cat = opp.forecast_category;
-      if (matrix[st] && matrix[st][cat]) {
-        matrix[st][cat].amount += opp.acv_amount;
-        matrix[st][cat].count += 1;
-        matrix[st][cat].opps.push(opp);
+    q4TodayOpps.forEach(opp => {
+      if (opp.acv_amount >= 100000) {
+        greater.push(opp);
+      } else {
+        less.push(opp);
       }
     });
 
-    return matrix;
-  }, [todayOpps]);
+    // Sort by ACV descending
+    greater.sort((a, b) => b.acv_amount - a.acv_amount);
+    less.sort((a, b) => b.acv_amount - a.acv_amount);
+
+    return { oppsGreater100k: greater, oppsLess100k: less };
+  }, [q4TodayOpps]);
+
+  // Grouping helper function: groups an array of opps by the 5 approval statuses
+  const groupOppsByApprovalStatus = (opps: SharedOpportunity[]) => {
+    const groups: Record<typeof approvalStatuses[number], SharedOpportunity[]> = {
+      Approved: [],
+      'Approved - 2nd': [],
+      'Pending-Approval': [],
+      Blank: [],
+      Rejected: [],
+    };
+
+    opps.forEach(opp => {
+      const st = getNormalizedStatus(opp.approval_status);
+      groups[st].push(opp);
+    });
+
+    return groups;
+  };
+
+  const greaterGrouped = useMemo(() => groupOppsByApprovalStatus(oppsGreater100k), [oppsGreater100k]);
+  const lessGrouped = useMemo(() => groupOppsByApprovalStatus(oppsLess100k), [oppsLess100k]);
+
+  // Total summary for Part 1 (> 100K)
+  const greaterTotalAcv = useMemo(() => oppsGreater100k.reduce((s, o) => s + o.acv_amount, 0), [oppsGreater100k]);
+  // Total summary for Part 2 (< 100K)
+  const lessTotalAcv = useMemo(() => oppsLess100k.reduce((s, o) => s + o.acv_amount, 0), [oppsLess100k]);
+
+  // Render function for opportunity table row
+  const renderOppRow = (opp: SharedOpportunity) => (
+    <tr
+      key={opp.opportunity_id}
+      onClick={() => setSelectedOppId(opp.opportunity_id)}
+      className="hover:bg-blue-50/70 transition-colors cursor-pointer group"
+    >
+      <td className="py-3 px-4 text-left">
+        <div className="font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">
+          {opp.opportunity_name}
+        </div>
+        <div className="text-[10.5px] text-slate-400 font-mono">
+          {opp.opportunity_id} &bull; {opp.account_name}
+        </div>
+      </td>
+      <td className="py-3 px-4 text-left font-semibold text-slate-800">
+        {opp.region}
+      </td>
+      <td className="py-3 px-4 text-left font-medium text-slate-600">
+        {opp.business_unit}
+      </td>
+      <td className="py-3 px-4 text-center">
+        <Badge variant={
+          opp.forecast_category === 'Closed' ? 'closed' :
+          opp.forecast_category === 'Commit' ? 'commit' :
+          opp.forecast_category === 'Best Case' ? 'bestcase' : 'pipeline'
+        }>
+          {opp.forecast_category}
+        </Badge>
+      </td>
+      <td className="py-3 px-4 text-right font-black font-mono text-slate-900 text-sm">
+        {formatCurrencyM(opp.acv_amount)}
+      </td>
+      <td className="py-3 px-4 text-center">
+        <button className="px-2.5 py-1 bg-slate-100 group-hover:bg-blue-600 text-slate-700 group-hover:text-white rounded-lg text-[11px] font-bold transition-all inline-flex items-center gap-1">
+          <span>Details</span>
+          <ExternalLink className="h-3 w-3" />
+        </button>
+      </td>
+    </tr>
+  );
+
+  // Render component for each Part (Grouped by Approval Status)
+  const renderOpportunityTablePart = (
+    partTitle: string,
+    partSubtitle: string,
+    groupedData: Record<typeof approvalStatuses[number], SharedOpportunity[]>,
+    totalCount: number,
+    totalAcv: number,
+    isGreater: boolean
+  ) => {
+    return (
+      <div className={`bg-white p-6 rounded-3xl border-2 ${isGreater ? 'border-blue-200 shadow-sm' : 'border-slate-200 shadow-xs'} space-y-6`}>
+        
+        {/* Top Header with Count and Total ACV */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <DollarSign className={`h-5 w-5 ${isGreater ? 'text-blue-600' : 'text-slate-600'}`} />
+              <h2 className="text-base font-black text-slate-900 tracking-tight">
+                {partTitle}
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">{partSubtitle}</p>
+          </div>
+
+          {/* Count and Total Badges */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="bg-slate-100 px-3.5 py-1.5 rounded-2xl border border-slate-200 text-slate-900 flex items-center gap-2">
+              <span className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Total Count:</span>
+              <span className="font-mono font-black text-xs">{totalCount} Deals</span>
+            </div>
+
+            <div className={`px-4 py-1.5 rounded-2xl text-white font-mono font-black text-sm shadow-2xs flex items-center gap-2 ${
+              isGreater ? 'bg-blue-600' : 'bg-slate-800'
+            }`}>
+              <span className="text-[10.5px] font-extrabold text-blue-200 uppercase tracking-wider font-sans">Total ACV:</span>
+              <span>{formatCurrencyM(totalAcv)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Grouped by 5 Approval Statuses */}
+        <div className="space-y-6">
+          {approvalStatuses.map(status => {
+            const oppsInStatus = groupedData[status] || [];
+            const statusAcv = oppsInStatus.reduce((s, o) => s + o.acv_amount, 0);
+
+            return (
+              <div key={status} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50 space-y-0">
+                
+                {/* Status Group Banner Header */}
+                <div className="px-5 py-3 bg-white border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: statusColors[status] || '#64748B' }} />
+                    <span className="text-xs font-black text-slate-900 tracking-wide">
+                      {status}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[10.5px] font-bold">
+                      {oppsInStatus.length} {oppsInStatus.length === 1 ? 'deal' : 'deals'}
+                    </span>
+                  </div>
+
+                  <div className="font-mono font-black text-xs text-slate-900">
+                    {formatCurrencyM(statusAcv)}
+                  </div>
+                </div>
+
+                {/* Status Table listing opportunities */}
+                {oppsInStatus.length === 0 ? (
+                  <div className="py-4 text-center text-slate-400 text-xs font-medium">
+                    No Q4 FY26 opportunities in <strong className="font-bold text-slate-600">{status}</strong> status for this tier.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto bg-white">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-black text-[10.5px] uppercase tracking-wider">
+                          <th className="py-2.5 px-4">Opportunity &amp; Account</th>
+                          <th className="py-2.5 px-4">Region</th>
+                          <th className="py-2.5 px-4">Business Unit</th>
+                          <th className="py-2.5 px-4 text-center">Forecast Category</th>
+                          <th className="py-2.5 px-4 text-right">ACV Amount</th>
+                          <th className="py-2.5 px-4 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {oppsInStatus.map(renderOppRow)}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-6 pb-20 bg-slate-50 min-h-screen text-slate-900">
+    <div className="space-y-8 pb-20 bg-slate-50 min-h-screen text-slate-900">
       
       {/* Top Header & Movement Analysis Toggle Button */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -112,11 +294,11 @@ export const ApprovalsPage: React.FC = () => {
             <h1 className="text-xl font-black text-slate-900">Approval Status &amp; Category Funnel</h1>
           </div>
           <p className="text-xs text-slate-500">
-            Sign-off status breakdown, approval x category cross-matrix analysis, and category movement shifts
+            Q4 Fiscal 2026 Approval Funnel and Tiered Opportunity Breakdown (&gt;100K vs &lt;100K)
           </p>
         </div>
 
-        {/* Movement Analysis Button (Keeps page clean) */}
+        {/* Movement Analysis Button */}
         <button
           onClick={() => setShowMovementAnalysis(!showMovementAnalysis)}
           className={`px-4 py-2.5 rounded-2xl font-bold text-xs shadow-xs transition-all flex items-center gap-2 cursor-pointer border ${
@@ -130,14 +312,7 @@ export const ApprovalsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Global Filter Bar (Respects All Business Unit, Category, Region, Approval Status) */}
-      <GlobalFilterBar
-        filters={filters}
-        onChange={setFilters}
-        dataset={rawTodayOpps}
-      />
-
-      {/* Collapsible Category Movement Analysis Section (if enabled via button) */}
+      {/* Collapsible Category Movement Analysis Section (if enabled) */}
       {showMovementAnalysis && (
         <div className="bg-white p-6 rounded-3xl border border-blue-200 shadow-md space-y-4 animate-in fade-in duration-200">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -153,28 +328,26 @@ export const ApprovalsPage: React.FC = () => {
             </button>
           </div>
           <ForecastCategoryMovementTable
-            todayDate="2026-10-06"
-            yesterdayDate="2026-10-05"
             onSelectOpp={setSelectedOppId}
           />
         </div>
       )}
 
-      {/* SECTION 1: Approval Status Funnel (Left) + Status Summary Table (Right) */}
+      {/* SECTION 1: Approval Status Funnel Chart (Q4 FY26 Only) + Summary Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Left: Horizontal Bar Chart / Funnel */}
+        {/* Left: Horizontal Bar Chart / Funnel (Q4 FY26 Only) */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                 <BarChart2 className="h-4 w-4 text-blue-600" />
-                <span>Approval Status Funnel ($M)</span>
+                <span>Approval Status Funnel ($M) &bull; Q4 FY26</span>
               </h3>
-              <p className="text-xs text-slate-500">Total ACV volume by approval status stage</p>
+              <p className="text-xs text-slate-500">Q4 ACV volume by approval status stage</p>
             </div>
-            <span className="text-xs font-mono font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
-              {todayOpps.length} Opps
+            <span className="text-xs font-mono font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+              {q4TodayOpps.length} Q4 Contracts
             </span>
           </div>
 
@@ -198,18 +371,18 @@ export const ApprovalsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Status Table in the Empty Space */}
+        {/* Right: Approval Status Summary Breakdown */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                 <Layers className="h-4 w-4 text-blue-600" />
-                <span>Approval Status Breakdown Table</span>
+                <span>Q4 FY26 Approval Summary Table</span>
               </h3>
-              <p className="text-xs text-slate-500">Detailed count, ACV amount, and portfolio share</p>
+              <p className="text-xs text-slate-500">Detailed count, ACV amount, and Q4 portfolio share</p>
             </div>
-            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
-              Total: {formatCurrencyM(totalFilteredAcv)}
+            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 font-mono">
+              Total: {formatCurrencyM(totalQ4Acv)}
             </span>
           </div>
 
@@ -250,96 +423,25 @@ export const ApprovalsPage: React.FC = () => {
 
       </div>
 
-      {/* SECTION 2: Approval and Category Analysis Matrix (Rows = Approval Status, Cols = Forecast Category) */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
-          <div>
-            <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
-              <Grid className="h-4 w-4 text-blue-600" />
-              <span>Approval and Category Analysis Matrix</span>
-            </h3>
-            <p className="text-xs text-slate-500">Cross-tabulation matrix of Approval Status (Rows) vs Forecast Category (Columns)</p>
-          </div>
+      {/* SECTION 2: PART 1 - Opportunities greater than 100K (Grouped by Approval Status) */}
+      {renderOpportunityTablePart(
+        'Opportunities greater than 100K',
+        'Q4 FY26 Contracts with Forecast ACV Amount >= $100,000 grouped by Approval Status',
+        greaterGrouped,
+        oppsGreater100k.length,
+        greaterTotalAcv,
+        true
+      )}
 
-          <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-            Displays Amount ($M) &amp; Deal Count (#)
-          </span>
-        </div>
-
-        {/* Matrix Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-center border-collapse">
-            <thead>
-              <tr className="bg-slate-100 border-b border-slate-200 text-slate-700">
-                <th className="py-3.5 px-4 text-left font-black text-xs uppercase tracking-wider text-slate-500">
-                  Approval Status \ Category
-                </th>
-                {categories.map(cat => (
-                  <th key={cat} className="py-3.5 px-4 font-black text-xs uppercase tracking-wider text-slate-800">
-                    {cat}
-                  </th>
-                ))}
-                <th className="py-3.5 px-4 font-black text-xs uppercase tracking-wider text-slate-900 bg-slate-200/70">
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 text-xs font-semibold">
-              {approvalStatuses.map(st => {
-                let rowAcv = 0;
-                let rowCnt = 0;
-
-                return (
-                  <tr key={st} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-4 px-4 text-left font-extrabold text-slate-900 bg-slate-50/70 flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColors[st] || '#64748B' }} />
-                      <span>{st}</span>
-                    </td>
-
-                    {categories.map(cat => {
-                      const cell = matrixData[st]?.[cat] || { amount: 0, count: 0, opps: [] };
-                      rowAcv += cell.amount;
-                      rowCnt += cell.count;
-
-                      return (
-                        <td
-                          key={cat}
-                          onClick={() => cell.count > 0 && setSelectedOppId(cell.opps[0]?.opportunity_id)}
-                          className={`py-4 px-4 border border-slate-200 transition-all ${
-                            cell.count > 0
-                              ? 'hover:bg-blue-50/60 cursor-pointer text-slate-900'
-                              : 'bg-slate-50/30 text-slate-400'
-                          }`}
-                        >
-                          <div className="flex flex-col items-center justify-center space-y-0.5">
-                            <span className="font-black text-xs font-mono text-slate-900">
-                              {formatCurrencyM(cell.amount)}
-                            </span>
-                            <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
-                              cell.count > 0 ? 'bg-slate-100 text-slate-700' : 'text-slate-400'
-                            }`}>
-                              {cell.count} {cell.count === 1 ? 'deal' : 'deals'}
-                            </span>
-                          </div>
-                        </td>
-                      );
-                    })}
-
-                    <td className="py-4 px-4 font-black font-mono text-xs text-slate-900 bg-slate-100/80 border border-slate-200">
-                      <div className="flex flex-col items-center justify-center space-y-0.5">
-                        <span>{formatCurrencyM(rowAcv)}</span>
-                        <span className="text-[10px] font-bold text-slate-500 font-mono">
-                          {rowCnt} deals
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* SECTION 3: PART 2 - Opportunities less than 100K (Grouped by Approval Status) */}
+      {renderOpportunityTablePart(
+        'Opportunities less than 100K',
+        'Q4 FY26 Contracts with Forecast ACV Amount < $100,000 grouped by Approval Status',
+        lessGrouped,
+        oppsLess100k.length,
+        lessTotalAcv,
+        false
+      )}
 
       {/* Slide-over Opportunity Drawer */}
       <OpportunityDrawer
