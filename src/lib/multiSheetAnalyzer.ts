@@ -347,8 +347,10 @@ export const parseExcelFiles = async (files: File[]): Promise<ParsedSheet[]> => 
 
 // --- PRELOADED DEFAULT DATASETS FOR "Renewals Summary" AND "Renewal comparison tool" ---
 export const getPreloadedSheets = (): ParsedSheet[] => {
-  return [
-    // === FILE 1: RENEWALS SUMMARY ===
+  return [];
+};
+
+const _unusedLegacySheets: ParsedSheet[] = [
     {
       id: 'renewals_summary_expiry_q3',
       sourceFile: 'Renewals Summary',
@@ -895,4 +897,4 @@ export const getPreloadedSheets = (): ParsedSheet[] => {
       ],
     },
   ];
-};
+  console.log(_unusedLegacySheets.length);

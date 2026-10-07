@@ -45,9 +45,8 @@ export const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({
       if (varVal < maxDrop.val) maxDrop = { period: r.expiryPeriod, category: r.category, val: varVal };
     });
   } else {
-    // Fallback defaults from grand total if category breakdown isn't explicit
-    maxGain = { period: 'Q4-2026', category: 'Closed', val: 850000 };
-    maxDrop = { period: 'Q4-2026', category: 'Commit', val: -710000 };
+    maxGain = { period: 'Q4-2026', category: 'Closed', val: 0 };
+    maxDrop = { period: 'Q4-2026', category: 'Commit', val: 0 };
   }
 
   const totalACV = data.grandTotal.todayAmount;

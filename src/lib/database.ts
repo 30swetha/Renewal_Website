@@ -45,10 +45,10 @@ export interface DailySummaryRecord {
 }
 
 const STORAGE_KEYS = {
-  SNAPSHOTS: 'renewiq_db_snapshots_v2',
-  OPPORTUNITIES: 'renewiq_db_opportunities_v2',
-  CHANGE_LOG: 'renewiq_db_changelog_v2',
-  DAILY_SUMMARY: 'renewiq_db_summary_v2',
+  SNAPSHOTS: 'renewiq_db_snapshots_v4',
+  OPPORTUNITIES: 'renewiq_db_opportunities_v4',
+  CHANGE_LOG: 'renewiq_db_changelog_v4',
+  DAILY_SUMMARY: 'renewiq_db_summary_v4',
 };
 
 // Database state container
@@ -57,9 +57,22 @@ class DatabaseStore {
   private opportunities: Map<string, OpportunitySnapshotRecord[]> = new Map(); // key = snapshot_date
   private changeLogs: Map<string, ChangeLogRecord[]> = new Map(); // key = snapshot_date
   private dailySummaries: Map<string, DailySummaryRecord[]> = new Map(); // key = snapshot_date
+  private namedSheets: Map<string, Record<string, any[]>> = new Map(); // key = snapshot_date
 
   constructor() {
+    this.purgeLegacyStorage();
     this.loadFromLocalStorage();
+  }
+
+  private purgeLegacyStorage() {
+    try {
+      if (typeof window === 'undefined') return;
+      ['renewiq_db_snapshots_v2', 'renewiq_db_opportunities_v2', 'renewiq_db_snapshots_v3', 'renewiq_db_opportunities_v3', 'renewiq_db_snapshots', 'renewiq_db_opportunities'].forEach(k => {
+        localStorage.removeItem(k);
+      });
+    } catch (e) {
+      // Ignore
+    }
   }
 
   private loadFromLocalStorage() {
@@ -69,10 +82,9 @@ class DatabaseStore {
       const rawSnaps = localStorage.getItem(STORAGE_KEYS.SNAPSHOTS);
       if (rawSnaps) {
         const parsed: SnapshotRecord[] = JSON.parse(rawSnaps);
-        // Filter out legacy mock demo snapshots
         parsed.forEach(s => {
           const files = s.source_files || [];
-          const isMock = files.some(f => f.includes('Uploaded_File.xlsx') || f.includes('Mock') || f.includes('Sample'));
+          const isMock = files.some(f => f.includes('Uploaded_File.xlsx') || f.includes('Mock') || f.includes('Sample') || f.includes('Daily_Renewal_Summary_Workbook_2026-10-06.xlsx'));
           if (!isMock && files.length > 0) {
             this.snapshots.set(s.snapshot_date, s);
           }
@@ -193,8 +205,6 @@ class DatabaseStore {
   public getDailySummariesForDate(date: string): DailySummaryRecord[] {
     return this.dailySummaries.get(date) || [];
   }
-
-  private namedSheets: Map<string, Record<string, any[]>> = new Map(); // key = snapshot_date, value = { sheetName: rows[] }
 
   // --- Named Sheet Storage Methods ---
   public saveNamedSheets(date: string, sheets: Record<string, any[]>) {
