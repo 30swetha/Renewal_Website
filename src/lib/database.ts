@@ -248,6 +248,23 @@ class DatabaseStore {
     return this.snapshots.get(date) || this.getSnapshots()[0];
   }
 
+  public getAllOpportunities(): OpportunitySnapshotRecord[] {
+    const oppMap = new Map<string, OpportunitySnapshotRecord>();
+    for (const ds of this.getAllScopeDatasets()) {
+      for (const opp of ds.opps) {
+        oppMap.set(opp.opportunity_id, opp);
+      }
+    }
+    for (const oppList of this.opportunities.values()) {
+      for (const opp of oppList) {
+        if (!oppMap.has(opp.opportunity_id)) {
+          oppMap.set(opp.opportunity_id, opp);
+        }
+      }
+    }
+    return Array.from(oppMap.values());
+  }
+
   public getOpportunitiesForDate(date: string, scope?: string): OpportunitySnapshotRecord[] {
     if (scope) {
       const scopeDs = this.getScopeDataset(date, scope);

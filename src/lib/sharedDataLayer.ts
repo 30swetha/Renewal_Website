@@ -209,28 +209,48 @@ function parseSheetRowsToOpps(rows: any[]): SharedOpportunity[] {
 /**
  * Gets Yesterday opportunities directly from the Yesterday_Data sheet in the SAME uploaded workbook
  */
-export function getWorkbookYesterdayOpps(dateStr: string = '2026-10-06', scope: string = 'Fiscal Q4'): SharedOpportunity[] {
-  const yRows = db.getSheetRows(dateStr, 'Yesterday_Data', scope) || db.getSheetRows(dateStr, 'Yesterday_Data') || [];
-  return parseSheetRowsToOpps(yRows);
+export function getWorkbookYesterdayOpps(dateStr: string = '2026-10-06', scope: string = 'Fiscal Q4', applyGlobalFilters: boolean = true): SharedOpportunity[] {
+  let yRows = db.getSheetRows(dateStr, 'Yesterday_Data', scope) || db.getSheetRows(dateStr, 'Yesterday_Data') || [];
+  if (yRows.length === 0) {
+    const allScopes = db.getAllScopeDatasets();
+    for (const ds of allScopes) {
+      if (ds.namedSheets && ds.namedSheets['Yesterday_Data']) {
+        yRows = ds.namedSheets['Yesterday_Data'];
+        break;
+      }
+    }
+  }
+  const opps = parseSheetRowsToOpps(yRows);
+  return applyGlobalFilters ? filterOppsWithGlobalFilters(opps) : opps;
 }
 
 /**
  * Gets Last Week opportunities directly from the Lastweek_Data sheet in the SAME uploaded workbook
  */
-export function getWorkbookLastweekOpps(dateStr: string = '2026-10-06', scope: string = 'Fiscal Q4'): SharedOpportunity[] {
-  const lwRows = db.getSheetRows(dateStr, 'Lastweek_Data', scope) || db.getSheetRows(dateStr, 'Lastweek_Data') || [];
-  return parseSheetRowsToOpps(lwRows);
+export function getWorkbookLastweekOpps(dateStr: string = '2026-10-06', scope: string = 'Fiscal Q4', applyGlobalFilters: boolean = true): SharedOpportunity[] {
+  let lwRows = db.getSheetRows(dateStr, 'Lastweek_Data', scope) || db.getSheetRows(dateStr, 'Lastweek_Data') || [];
+  if (lwRows.length === 0) {
+    const allScopes = db.getAllScopeDatasets();
+    for (const ds of allScopes) {
+      if (ds.namedSheets && ds.namedSheets['Lastweek_Data']) {
+        lwRows = ds.namedSheets['Lastweek_Data'];
+        break;
+      }
+    }
+  }
+  const opps = parseSheetRowsToOpps(lwRows);
+  return applyGlobalFilters ? filterOppsWithGlobalFilters(opps) : opps;
 }
 
 /**
  * Custom React hook to retrieve Today, Yesterday, and Last Week datasets reactively from the uploaded workbook
  */
-export function useSharedDatasets(scope: string = 'Fiscal Q4') {
+export function useSharedDatasets(scope: string = 'Fiscal Q4', applyGlobalFilters: boolean = true) {
   const refreshKey = useDatasetRefresh();
 
-  const todayOpps = getSharedDataset('2026-10-06', scope);
-  const yesterdayOpps = getWorkbookYesterdayOpps('2026-10-06', scope);
-  const lastweekOpps = getWorkbookLastweekOpps('2026-10-06', scope);
+  const todayOpps = getSharedDataset('2026-10-06', scope, applyGlobalFilters);
+  const yesterdayOpps = getWorkbookYesterdayOpps('2026-10-06', scope, applyGlobalFilters);
+  const lastweekOpps = getWorkbookLastweekOpps('2026-10-06', scope, applyGlobalFilters);
 
   return {
     todayOpps,
@@ -249,19 +269,24 @@ export function hasDataForDate(dateStr?: string, scope: string = 'Fiscal Q4'): b
 /**
  * Get shared dataset for a given snapshot date and scope
  */
-export function getSharedDataset(dateStr: string = '2026-10-06', scope: string = 'Fiscal Q4'): SharedOpportunity[] {
-  const rawOpps = db.getOpportunitiesForDate(dateStr, scope);
-  if (rawOpps.length === 0) {
-    return [];
+export function getSharedDataset(dateStr: string = '2026-10-06', scope: string = 'Fiscal Q4', applyGlobalFilters: boolean = true): SharedOpportunity[] {
+  let rawOpps = db.getOpportunitiesForDate(dateStr, scope);
+  
+  // Search across all scope datasets if empty or if global filters active
+  if (rawOpps.length === 0 || scope === 'Fiscal Q4' || scope === 'All') {
+    const allOpps = db.getAllOpportunities();
+    if (allOpps.length > 0) {
+      rawOpps = allOpps;
+    }
   }
 
-  return rawOpps.map(o => {
+  const mapped = rawOpps.map(o => {
     const raw = o.json_data || {};
-    const startDate = raw['Service Start Date'] || raw['service_start_date'] || '2026-01-01';
-    const endDate = raw['Service End Date'] || raw['service_end_date'] || '2026-12-31';
-    const closeDate = raw['Close Date'] || raw['close_date'] || (o.forecast_category === 'Closed' ? '2026-09-30' : '2026-11-15');
+    const startDate = String(raw['Service Start Date'] || raw['service_start_date'] || '2026-01-01');
+    const endDate = String(raw['Service End Date'] || raw['service_end_date'] || '2026-12-31');
+    const closeDate = String(raw['Close Date'] || raw['close_date'] || (o.forecast_category === 'Closed' ? '2026-09-30' : '2026-11-15'));
     
-    let fiscalPeriod = raw['Fiscal Period'] || raw['fiscal_period'] || o.expiry_quarter;
+    let fiscalPeriod = String(raw['Fiscal Period'] || raw['fiscal_period'] || o.expiry_quarter || '').trim();
     if (fiscalPeriod === 'Q4-2026') fiscalPeriod = 'Q4 2026';
     if (fiscalPeriod === 'Q3-2026') fiscalPeriod = 'Q3 2026';
     if (fiscalPeriod === 'Q2-2026') fiscalPeriod = 'Q2 2026';
@@ -282,6 +307,8 @@ export function getSharedDataset(dateStr: string = '2026-10-06', scope: string =
       is_slipped_to_2027: isSlipped,
     };
   });
+
+  return applyGlobalFilters ? filterOppsWithGlobalFilters(mapped) : mapped;
 }
 
 export function getFiscalQ4Dataset(dateStr: string = '2026-10-06'): SharedOpportunity[] {
@@ -313,9 +340,26 @@ export function getSlippageTo2027Opps(dateStr: string = '2026-10-06'): SharedOpp
  */
 export function getExpiryFinalRows(dateStr: string = '2026-10-06', scope: string = 'Fiscal Q4', filters?: GlobalHeaderFilters) {
   const f = filters || getGlobalHeaderFilters();
-  const rows = db.getSheetRows(dateStr, 'Expiry_Final', scope) || db.getSheetRows(dateStr, 'Expiry_Final') || [];
   
-  return rows.map(r => {
+  let rows = db.getSheetRows(dateStr, 'Expiry_Final', scope) || db.getSheetRows(dateStr, 'Expiry_Final') || [];
+  if (rows.length === 0 || f.year !== '2026' || f.quarter !== 'Q4') {
+    const allScopes = db.getAllScopeDatasets();
+    const combinedRows: any[] = [];
+    allScopes.forEach(ds => {
+      if (ds.namedSheets) {
+        Object.keys(ds.namedSheets).forEach(sheetName => {
+          if (sheetName.toLowerCase().replace(/[^a-z]/g, '') === 'expiryfinal') {
+            combinedRows.push(...ds.namedSheets[sheetName]);
+          }
+        });
+      }
+    });
+    if (combinedRows.length > 0) {
+      rows = combinedRows;
+    }
+  }
+
+  const parsed = rows.map(r => {
     let cat = String(r['Forecast Category'] || r['Category'] || '').trim();
     if (!cat || cat.toLowerCase() === 'blank' || cat.toLowerCase() === 'none') {
       cat = 'No category';
@@ -332,7 +376,9 @@ export function getExpiryFinalRows(dateStr: string = '2026-10-06', scope: string
       tlwCount: Number(r['T-LW Count'] || r['TLW Count'] || 0),
       rawRow: r,
     };
-  }).filter(r => {
+  });
+
+  return parsed.filter(r => {
     const pUpper = r.period.toUpperCase();
     if (f.year !== 'All') {
       const y = f.year;

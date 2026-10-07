@@ -17,7 +17,8 @@ import {
   getWorkbookYesterdayOpps, 
   getWorkbookLastweekOpps, 
   getSlippageTo2027Opps, 
-  getExpiryFinalRows 
+  getExpiryFinalRows,
+  getGlobalHeaderFilters
 } from '../lib/sharedDataLayer';
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
 
@@ -307,7 +308,7 @@ export const OverviewPage: React.FC = () => {
               {formatCurrencyM(totalQ4AcvToday)}
             </div>
             <p className="text-xs text-slate-500 font-medium mt-1">
-              Total active ACV for Q4 Fiscal 2026 ([Fiscal Period] = Q4 2026)
+              Total active ACV for {getGlobalHeaderFilters().quarter !== 'All' ? getGlobalHeaderFilters().quarter : 'All Quarters'} Fiscal {getGlobalHeaderFilters().year !== 'All' ? getGlobalHeaderFilters().year : 'All Years'} ([Fiscal Period] = {getGlobalHeaderFilters().quarter !== 'All' ? getGlobalHeaderFilters().quarter : ''} {getGlobalHeaderFilters().year !== 'All' ? getGlobalHeaderFilters().year : ''})
             </p>
           </div>
 
