@@ -3,7 +3,7 @@ import {
   ShieldCheck, 
   Layers, 
   Activity, 
-  BarChart2, 
+  PieChart as PieChartIcon, 
   DollarSign,
   Search,
   ChevronDown,
@@ -13,12 +13,11 @@ import {
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
+  PieChart, 
+  Pie, 
   Tooltip, 
-  Cell 
+  Cell,
+  Legend
 } from 'recharts';
 import { OpportunityDrawer } from '../components/ui/OpportunityDrawer';
 import { getSharedDataset, formatCurrencyM, useDatasetRefresh, type SharedOpportunity } from '../lib/sharedDataLayer';
@@ -647,13 +646,13 @@ export const ApprovalsPage: React.FC = () => {
       {/* SECTION 1: Approval Status Funnel Chart (Q4 FY26 Only) + Summary Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Left: Horizontal Bar Chart / Funnel (Q4 FY26 Only) */}
+        {/* Left: Pie Chart / Funnel (Q4 FY26 Only) */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                <BarChart2 className="h-4 w-4 text-blue-600" />
-                <span>Approval Status Funnel ($M) &bull; Q4 FY26</span>
+                <PieChartIcon className="h-4 w-4 text-blue-600" />
+                <span>Approval Status Distribution ($M) &bull; Q4 FY26</span>
               </h3>
               <p className="text-xs text-slate-500">Q4 ACV volume by approval status stage</p>
             </div>
@@ -664,20 +663,29 @@ export const ApprovalsPage: React.FC = () => {
 
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                layout="vertical"
-                data={statusData}
-                margin={{ top: 10, right: 30, left: 40, bottom: 5 }}
-              >
-                <XAxis type="number" tick={{ fontSize: 11, fill: '#475569' }} />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fontWeight: 'bold', fill: '#1E293B' }} width={120} />
-                <Tooltip formatter={(value: any) => [`$${Number(value).toFixed(2)}M`, 'ACV Amount']} />
-                <Bar dataKey="amount" radius={[0, 8, 8, 0]}>
+              <PieChart>
+                <Pie
+                  data={statusData}
+                  dataKey="amount"
+                  nameKey="name"
+                  cx="50%"
+                  cy="45%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={3}
+                  label={({ pct }) => Number(pct) > 0 ? `${pct}%` : ''}
+                  labelLine={false}
+                >
                   {statusData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip formatter={(value: any) => [`$${Number(value).toFixed(2)}M`, 'ACV Amount']} />
+                <Legend 
+                  iconType="circle" 
+                  wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} 
+                />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         </div>
