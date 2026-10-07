@@ -39,8 +39,9 @@ export const KPICards: React.FC<KPICardsProps> = ({ grandTotal }) => {
           </span>
         </div>
 
-        <p className="mt-2 text-xs text-slate-400 font-medium">
-          Total active renewal pipeline across all periods
+        <p className="mt-2 text-xs text-slate-400 font-medium flex items-center justify-between">
+          <span>Basis: <strong className="text-blue-300">Fiscal Period Q4-2026</strong></span>
+          <span className="text-[10px] text-slate-400 font-mono">Source: Fiscal Q4 File &gt; Expiry_Final</span>
         </p>
       </div>
 

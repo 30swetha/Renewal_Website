@@ -388,6 +388,17 @@ async function processSingleFile(
       }
     }
 
+    // Extract and store all named sheets into db for direct sheet reading
+    const sheetsMap: Record<string, any[]> = {};
+    sheetNames.forEach(sName => {
+      const ws = workbook.Sheets[sName];
+      if (ws) {
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        sheetsMap[sName] = rows;
+      }
+    });
+    db.saveNamedSheets(snapshotDate, sheetsMap);
+
     // Read target sheet
     const targetSheet = workbook.Sheets[targetSheetName];
     if (!targetSheet) {

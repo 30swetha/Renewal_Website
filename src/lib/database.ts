@@ -163,11 +163,34 @@ class DatabaseStore {
     return this.dailySummaries.get(date) || [];
   }
 
+  private namedSheets: Map<string, Record<string, any[]>> = new Map(); // key = snapshot_date, value = { sheetName: rows[] }
+
+  // --- Named Sheet Storage Methods ---
+  public saveNamedSheets(date: string, sheets: Record<string, any[]>) {
+    const existing = this.namedSheets.get(date) || {};
+    this.namedSheets.set(date, { ...existing, ...sheets });
+  }
+
+  public getSheetRows(date: string, sheetName: string): any[] | undefined {
+    const sheets = this.namedSheets.get(date);
+    if (!sheets) return undefined;
+    
+    const targetKey = Object.keys(sheets).find(
+      k => k.trim().toLowerCase() === sheetName.trim().toLowerCase()
+    );
+    return targetKey ? sheets[targetKey] : undefined;
+  }
+
+  public getAllSheetsForDate(date: string): Record<string, any[]> {
+    return this.namedSheets.get(date) || {};
+  }
+
   public clearAll() {
     this.snapshots.clear();
     this.opportunities.clear();
     this.changeLogs.clear();
     this.dailySummaries.clear();
+    this.namedSheets.clear();
     this.saveToLocalStorage();
   }
 }
