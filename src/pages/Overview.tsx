@@ -221,60 +221,6 @@ export const OverviewPage: React.FC = () => {
     );
   }, [regionalTrendData]);
 
-  // Executive Synthesis Regional Proposal Confirmation Narratives (Fixed 6 Region Order)
-  const proposalNarratives = useMemo(() => {
-    return FIXED_REGIONS.map(regName => {
-      const regOpps = q4Today.filter(o => normalizeRegionName(o.sub_region || o.region) === regName);
-      
-      const total = regOpps.length;
-      
-      const approved = regOpps.filter(o => {
-        const s = (o.approval_status || '').trim();
-        return s === 'Approved' || s.includes('2nd') || s.includes('Approved-2nd') || s.includes('Approved - 2nd');
-      }).length;
-
-      const pending = regOpps.filter(o => {
-        const s = (o.approval_status || '').trim();
-        return s.includes('Pending');
-      }).length;
-
-      const blank = regOpps.filter(o => {
-        const s = (o.approval_status || '').trim();
-        return !s || s === 'Blank' || s === 'Empty' || s === 'None';
-      }).length;
-
-      return {
-        region: regName,
-        total,
-        approved,
-        pending,
-        blank,
-      };
-    });
-  }, [q4Today]);
-
-  // Executive Synthesis Regional Trend Narratives (Fixed 6 Region Order)
-  const regionalTrendNarratives = useMemo(() => {
-    return FIXED_REGIONS.map(regName => {
-      const regOpps = q4Today.filter(o => normalizeRegionName(o.sub_region || o.region) === regName);
-
-      const total = regOpps.reduce((s, o) => s + o.acv_amount, 0);
-      const closed = regOpps.filter(o => o.forecast_category === 'Closed').reduce((s, o) => s + o.acv_amount, 0);
-      const commit = regOpps.filter(o => o.forecast_category === 'Commit').reduce((s, o) => s + o.acv_amount, 0);
-      const bc = regOpps.filter(o => o.forecast_category === 'Best Case').reduce((s, o) => s + o.acv_amount, 0);
-      const pipeline = regOpps.filter(o => o.forecast_category === 'Pipeline').reduce((s, o) => s + o.acv_amount, 0);
-
-      return {
-        region: regName,
-        total,
-        closed,
-        commit,
-        bc,
-        pipeline,
-      };
-    });
-  }, [q4Today]);
-
   // Helper render for Delta badges (Today vs Yesterday and Today vs Last Week)
   const renderDeltaBadge = (todayVal: number, prevVal: number, isCurrency: boolean = true) => {
     if (prevVal === undefined || isNaN(prevVal)) {
@@ -391,65 +337,7 @@ export const OverviewPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 4) "Proposal Confirmation" as compact one-line rows */}
-        <div className="space-y-2 pt-2 border-t border-slate-100">
-          <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">Proposal Confirmation:</div>
-          <div className="space-y-1 overflow-x-auto">
-            {proposalNarratives.map((item) => (
-              <div key={item.region} className="flex items-center text-xs py-1.5 px-3 bg-slate-50/60 rounded-xl border border-slate-100 whitespace-nowrap min-w-max">
-                <span className="font-black text-slate-900 w-52 shrink-0">{item.region}</span>
-                <span className="text-slate-300 mx-2">&bull;</span>
-                <span className="text-slate-400 font-medium">
-                  <strong className={`font-mono font-black ${item.total > 0 ? 'text-slate-900' : 'text-slate-400'}`}>{item.total}</strong> in system
-                </span>
-                <span className="text-slate-300 mx-2">&bull;</span>
-                <span className="text-slate-400 font-medium">
-                  <strong className={`font-mono font-black ${item.approved > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>{item.approved}</strong> Approved
-                </span>
-                <span className="text-slate-300 mx-2">&bull;</span>
-                <span className="text-slate-400 font-medium">
-                  <strong className={`font-mono font-black ${item.pending > 0 ? 'text-amber-700' : 'text-slate-400'}`}>{item.pending}</strong> Pending
-                </span>
-                <span className="text-slate-300 mx-2">&bull;</span>
-                <span className="text-slate-400 font-medium">
-                  <strong className={`font-mono font-black ${item.blank > 0 ? 'text-slate-700' : 'text-slate-400'}`}>{item.blank}</strong> Yet to propose
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* 5) "Regional Trend" as compact one-line rows */}
-        <div className="space-y-2 pt-2 border-t border-slate-100">
-          <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">Regional Trend:</div>
-          <div className="space-y-1 overflow-x-auto">
-            {regionalTrendNarratives.map((item) => (
-              <div key={item.region} className="flex items-center text-xs py-1.5 px-3 bg-slate-50/60 rounded-xl border border-slate-100 whitespace-nowrap min-w-max">
-                <span className="font-black text-slate-900 w-52 shrink-0">{item.region}</span>
-                <span className="text-slate-300 mx-2">&bull;</span>
-                <span className="text-slate-400 font-medium">
-                  <strong className="font-mono font-black text-slate-900">{formatCurrencyM(item.total)}</strong> total
-                </span>
-                <span className="text-slate-300 mx-2">&bull;</span>
-                <span className="text-slate-400 font-medium">
-                  Closed <strong className={`font-mono font-black ${item.closed > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>{formatCurrencyM(item.closed)}</strong>
-                </span>
-                <span className="text-slate-300 mx-2">&bull;</span>
-                <span className="text-slate-400 font-medium">
-                  Commit <strong className={`font-mono font-black ${item.commit > 0 ? 'text-blue-700' : 'text-slate-400'}`}>{formatCurrencyM(item.commit)}</strong>
-                </span>
-                <span className="text-slate-300 mx-2">&bull;</span>
-                <span className="text-slate-400 font-medium">
-                  Best Case <strong className={`font-mono font-black ${item.bc > 0 ? 'text-purple-700' : 'text-slate-400'}`}>{formatCurrencyM(item.bc)}</strong>
-                </span>
-                <span className="text-slate-300 mx-2">&bull;</span>
-                <span className="text-slate-400 font-medium">
-                  Pipeline <strong className={`font-mono font-black ${item.pipeline > 0 ? 'text-amber-700' : 'text-slate-400'}`}>{formatCurrencyM(item.pipeline)}</strong>
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
 
       </div>
 
