@@ -20,6 +20,7 @@ import { CommandPalette } from '../ui/CommandPalette';
 import { DailyIngestionModal } from '../dashboard/DailyIngestionModal';
 import { db } from '../../lib/database';
 import { useDatasetRefresh } from '../../lib/sharedDataLayer';
+import { loadDefaultWorkspaceExcelFiles } from '../../lib/workspaceExcelLoader';
 
 export const AppShell: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -54,10 +55,17 @@ export const AppShell: React.FC = () => {
     };
   }, [asOfDate, refreshKey]);
 
-  // Animated branded initial loading screen
+  // Auto-load 4 primary workspace Excel files on initial startup if database is empty
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 300);
-    return () => clearTimeout(timer);
+    let isMounted = true;
+    async function initData() {
+      await loadDefaultWorkspaceExcelFiles('2026-10-06');
+      if (isMounted) {
+        setLoading(false);
+      }
+    }
+    initData();
+    return () => { isMounted = false; };
   }, []);
 
   // Theme toggle class
