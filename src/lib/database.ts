@@ -44,17 +44,32 @@ export interface DailySummaryRecord {
   value: number;
 }
 
+export interface ScopeDatasetRecord {
+  id: string;
+  snapshotDate: string; // YYYY-MM-DD
+  scope: string; // "Fiscal Q4", "Fiscal 2026", "Fiscal 2027", "Comparison"
+  detectedType: 'Summary workbook' | 'Comparison tool file' | 'CSV Dataset' | 'Excel Dataset';
+  sourceFileName: string;
+  uploadedAt: string;
+  opps: OpportunitySnapshotRecord[];
+  namedSheets: Record<string, any[]>;
+  rowCount: number;
+  totalAcv: number;
+}
+
 const STORAGE_KEYS = {
-  SNAPSHOTS: 'renewiq_db_snapshots_v4',
-  OPPORTUNITIES: 'renewiq_db_opportunities_v4',
-  CHANGE_LOG: 'renewiq_db_changelog_v4',
-  DAILY_SUMMARY: 'renewiq_db_summary_v4',
+  SNAPSHOTS: 'renewiq_db_snapshots_v5',
+  OPPORTUNITIES: 'renewiq_db_opportunities_v5',
+  DATASETS: 'renewiq_db_scope_datasets_v5',
+  CHANGE_LOG: 'renewiq_db_changelog_v5',
+  DAILY_SUMMARY: 'renewiq_db_summary_v5',
 };
 
 // Database state container
 class DatabaseStore {
   private snapshots: Map<string, SnapshotRecord> = new Map();
   private opportunities: Map<string, OpportunitySnapshotRecord[]> = new Map(); // key = snapshot_date
+  private datasets: Map<string, ScopeDatasetRecord> = new Map(); // key = snapshot_date + "_" + scope
   private changeLogs: Map<string, ChangeLogRecord[]> = new Map(); // key = snapshot_date
   private dailySummaries: Map<string, DailySummaryRecord[]> = new Map(); // key = snapshot_date
   private namedSheets: Map<string, Record<string, any[]>> = new Map(); // key = snapshot_date
@@ -67,7 +82,7 @@ class DatabaseStore {
   private purgeLegacyStorage() {
     try {
       if (typeof window === 'undefined') return;
-      ['renewiq_db_snapshots_v2', 'renewiq_db_opportunities_v2', 'renewiq_db_snapshots_v3', 'renewiq_db_opportunities_v3', 'renewiq_db_snapshots', 'renewiq_db_opportunities'].forEach(k => {
+      ['renewiq_db_snapshots_v2', 'renewiq_db_opportunities_v2', 'renewiq_db_snapshots_v3', 'renewiq_db_opportunities_v3', 'renewiq_db_snapshots_v4', 'renewiq_db_opportunities_v4'].forEach(k => {
         localStorage.removeItem(k);
       });
     } catch (e) {
@@ -78,6 +93,14 @@ class DatabaseStore {
   private loadFromLocalStorage() {
     try {
       if (typeof window === 'undefined') return;
+
+      const rawDatasets = localStorage.getItem(STORAGE_KEYS.DATASETS);
+      if (rawDatasets) {
+        const parsed: Record<string, ScopeDatasetRecord> = JSON.parse(rawDatasets);
+        Object.entries(parsed).forEach(([key, ds]) => {
+          this.datasets.set(key, ds);
+        });
+      }
 
       const rawSnaps = localStorage.getItem(STORAGE_KEYS.SNAPSHOTS);
       if (rawSnaps) {
@@ -122,6 +145,10 @@ class DatabaseStore {
     try {
       if (typeof window === 'undefined') return;
 
+      const dsObj: Record<string, ScopeDatasetRecord> = {};
+      this.datasets.forEach((val, key) => { dsObj[key] = val; });
+      localStorage.setItem(STORAGE_KEYS.DATASETS, JSON.stringify(dsObj));
+
       const snapArr = Array.from(this.snapshots.values());
       localStorage.setItem(STORAGE_KEYS.SNAPSHOTS, JSON.stringify(snapArr));
 
@@ -141,32 +168,60 @@ class DatabaseStore {
     }
   }
 
-  // --- Snapshot Methods ---
+  // --- Scope Dataset Methods (No merging across files!) ---
+  public saveScopeDataset(dataset: ScopeDatasetRecord) {
+    const key = `${dataset.snapshotDate}_${dataset.scope}`;
+    this.datasets.set(key, dataset);
+
+    // Also update snapshot metadata
+    const existingSnap = this.snapshots.get(dataset.snapshotDate);
+    const existingFiles = existingSnap?.source_files || [];
+    const sourceFiles = Array.from(new Set([...existingFiles, dataset.sourceFileName]));
+    
+    this.snapshots.set(dataset.snapshotDate, {
+      id: `SNAP-${dataset.snapshotDate}`,
+      snapshot_date: dataset.snapshotDate,
+      uploaded_at: dataset.uploadedAt,
+      source_files: sourceFiles,
+      row_count: (existingSnap?.row_count || 0) + dataset.rowCount,
+    });
+
+    // Save named sheets under dataset key
+    const dateSheets = this.namedSheets.get(dataset.snapshotDate) || {};
+    this.namedSheets.set(dataset.snapshotDate, { ...dateSheets, ...dataset.namedSheets });
+
+    this.saveToLocalStorage();
+  }
+
+  public getScopeDataset(date: string, scope: string): ScopeDatasetRecord | undefined {
+    const key = `${date}_${scope}`;
+    if (this.datasets.has(key)) {
+      return this.datasets.get(key);
+    }
+    // Fallback: look for any date matching this scope
+    for (const [k, ds] of this.datasets.entries()) {
+      if (k.endsWith(`_${scope}`) && ds.opps.length > 0) {
+        return ds;
+      }
+    }
+    return undefined;
+  }
+
+  public getAllScopeDatasets(): ScopeDatasetRecord[] {
+    return Array.from(this.datasets.values());
+  }
+
+  public deleteScopeDataset(date: string, scope: string) {
+    const key = `${date}_${scope}`;
+    this.datasets.delete(key);
+    this.saveToLocalStorage();
+  }
+
+  // --- Legacy Snapshot Methods ---
   public saveSnapshot(snapshot: SnapshotRecord, opps: OpportunitySnapshotRecord[]) {
     const date = snapshot.snapshot_date;
-    const existingSnap = this.snapshots.get(date);
-    const existingOpps = this.opportunities.get(date) || [];
-
-    // Merge source files without duplicates
-    const mergedFiles = Array.from(new Set([
-      ...(existingSnap?.source_files || []),
-      ...(snapshot.source_files || [])
-    ]));
-
-    // Merge opportunities by opportunity_id to preserve data from multiple ingested files
-    const oppMap = new Map<string, OpportunitySnapshotRecord>();
-    existingOpps.forEach(o => oppMap.set(o.opportunity_id, o));
-    opps.forEach(o => oppMap.set(o.opportunity_id, o));
-    const mergedOpps = Array.from(oppMap.values());
-
-    const updatedSnap: SnapshotRecord = {
-      ...snapshot,
-      source_files: mergedFiles,
-      row_count: mergedOpps.length,
-    };
-
-    this.snapshots.set(date, updatedSnap);
-    this.opportunities.set(date, mergedOpps);
+    this.snapshots.set(date, snapshot);
+    this.opportunities.set(date, opps);
     this.saveToLocalStorage();
   }
 
@@ -180,6 +235,12 @@ class DatabaseStore {
     this.changeLogs.delete(date);
     this.dailySummaries.delete(date);
     this.namedSheets.delete(date);
+    // Delete all scope datasets for this date
+    for (const key of Array.from(this.datasets.keys())) {
+      if (key.startsWith(`${date}_`)) {
+        this.datasets.delete(key);
+      }
+    }
     this.saveToLocalStorage();
   }
 
@@ -187,17 +248,25 @@ class DatabaseStore {
     return this.snapshots.get(date) || this.getSnapshots()[0];
   }
 
-  public getOpportunitiesForDate(date: string): OpportunitySnapshotRecord[] {
+  public getOpportunitiesForDate(date: string, scope?: string): OpportunitySnapshotRecord[] {
+    if (scope) {
+      const scopeDs = this.getScopeDataset(date, scope);
+      if (scopeDs && scopeDs.opps.length > 0) {
+        return scopeDs.opps;
+      }
+    }
+    // Default to Fiscal Q4 or first available dataset
+    const q4Ds = this.getScopeDataset(date, 'Fiscal Q4');
+    if (q4Ds && q4Ds.opps.length > 0) {
+      return q4Ds.opps;
+    }
     const opps = this.opportunities.get(date);
     if (opps && opps.length > 0) {
       return opps;
     }
-    // Fallback: Return latest snapshot's opportunities if available
-    for (const snap of this.getSnapshots()) {
-      const snapOpps = this.opportunities.get(snap.snapshot_date);
-      if (snapOpps && snapOpps.length > 0) {
-        return snapOpps;
-      }
+    // Fallback: Return any available dataset opps
+    for (const ds of this.getAllScopeDatasets()) {
+      if (ds.opps.length > 0) return ds.opps;
     }
     return [];
   }
@@ -234,10 +303,19 @@ class DatabaseStore {
     this.namedSheets.set(date, { ...existing, ...sheets });
   }
 
-  public getSheetRows(date: string, sheetName: string): any[] | undefined {
+  public getSheetRows(date: string, sheetName: string, scope?: string): any[] | undefined {
+    if (scope) {
+      const scopeDs = this.getScopeDataset(date, scope);
+      if (scopeDs && scopeDs.namedSheets) {
+        const targetKey = Object.keys(scopeDs.namedSheets).find(
+          k => k.trim().toLowerCase() === sheetName.trim().toLowerCase()
+        );
+        if (targetKey) return scopeDs.namedSheets[targetKey];
+      }
+    }
+
     let sheets = this.namedSheets.get(date);
     if (!sheets || Object.keys(sheets).length === 0) {
-      // Fallback to any date with sheets
       for (const [, val] of this.namedSheets.entries()) {
         if (val && Object.keys(val).length > 0) {
           sheets = val;
@@ -245,7 +323,18 @@ class DatabaseStore {
         }
       }
     }
-    if (!sheets) return undefined;
+    if (!sheets) {
+      // Check in datasets
+      for (const ds of this.getAllScopeDatasets()) {
+        if (ds.namedSheets) {
+          const targetKey = Object.keys(ds.namedSheets).find(
+            k => k.trim().toLowerCase() === sheetName.trim().toLowerCase()
+          );
+          if (targetKey) return ds.namedSheets[targetKey];
+        }
+      }
+      return undefined;
+    }
     
     const targetKey = Object.keys(sheets).find(
       k => k.trim().toLowerCase() === sheetName.trim().toLowerCase()
@@ -262,16 +351,42 @@ class DatabaseStore {
     return {};
   }
 
-  public clearAll() {
+  /**
+   * Complete, uncompromising purge of all application data across memory, LocalStorage, SessionStorage, IndexedDB & Supabase
+   */
+  public async clearAll(): Promise<void> {
+    this.datasets.clear();
     this.snapshots.clear();
     this.opportunities.clear();
     this.changeLogs.clear();
     this.dailySummaries.clear();
     this.namedSheets.clear();
+    
     try {
       if (typeof window !== 'undefined') {
         localStorage.clear();
         sessionStorage.clear();
+        localStorage.setItem('renewiq_user_cleared', 'true');
+        
+        // Delete IndexedDB databases if available
+        if (window.indexedDB) {
+          try {
+            if ('databases' in window.indexedDB) {
+              const dbs = await window.indexedDB.databases();
+              dbs.forEach(dbInfo => {
+                if (dbInfo.name) {
+                  window.indexedDB.deleteDatabase(dbInfo.name);
+                }
+              });
+            } else {
+              ['renewiq_db', 'renewiq_cache', 'keyval-store'].forEach(name => {
+                window.indexedDB.deleteDatabase(name);
+              });
+            }
+          } catch (idbErr) {
+            console.warn('IndexedDB clear warning:', idbErr);
+          }
+        }
       }
     } catch (e) {
       console.warn('Storage clear warning:', e);

@@ -125,6 +125,8 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
           detectedType: 'Unrecognised file layout',
           detectedScope: 'Unknown',
           rowCount: 0,
+          totalAcv: 0,
+          formattedAcv: '$0.00M',
           success: false,
           message: `Unexpected Ingestion Error: ${err.message || 'Processing failed'}`,
         })),
@@ -179,13 +181,15 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
     if (onSuccess) onSuccess();
   };
 
-  const handleClearAllData = () => {
-    db.clearAll();
-    window.dispatchEvent(new Event('dataset-updated'));
-    setFiles([]);
-    setIngestResult(null);
-    setSuccessBanner('All data wiped. Entire application is now clean and empty.');
-    if (onSuccess) onSuccess();
+  const handleClearAllData = async () => {
+    if (window.confirm('Are you sure you want to delete ALL dataset files and wipe storage to zero? This action is permanent.')) {
+      await db.clearAll();
+      window.dispatchEvent(new Event('dataset-updated'));
+      setFiles([]);
+      setIngestResult(null);
+      setSuccessBanner('All data wiped. Entire application is now clean and empty.');
+      if (onSuccess) onSuccess();
+    }
   };
 
   return (
@@ -370,7 +374,7 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
                           <span className="font-extrabold text-slate-900">{res.fileName}</span>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-0.5 font-mono text-[10.5px]">
+                        <div className="flex flex-wrap items-center gap-2 pt-0.5 font-mono text-[10.5px]">
                           <span className="px-2 py-0.5 rounded-md bg-white/80 border border-slate-200 text-slate-800 font-bold">
                             Type: {res.detectedType}
                           </span>
@@ -378,8 +382,13 @@ export const DailyIngestionModal: React.FC<DailyIngestionModalProps> = ({
                             Scope: {res.detectedScope}
                           </span>
                           <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 font-bold">
-                            {res.rowCount} rows
+                            Rows: {res.rowCount}
                           </span>
+                          {res.formattedAcv && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 border border-emerald-300 font-extrabold">
+                              Forecast ACV: {res.formattedAcv}
+                            </span>
+                          )}
                         </div>
 
                         <p className="text-[11px] font-medium pt-1 opacity-90">{res.message}</p>

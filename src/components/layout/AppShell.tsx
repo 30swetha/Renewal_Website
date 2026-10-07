@@ -39,27 +39,16 @@ export const AppShell: React.FC = () => {
 
   const refreshKey = useDatasetRefresh();
 
-  const snapshotInfo = useMemo(() => {
-    const snaps = db.getSnapshots();
-    if (!snaps || snaps.length === 0) {
-      return {
-        files: 'No file uploaded',
-        snapshotDate: asOfDate,
-        uploadTime: 'N/A',
-      };
+  const activeFilesReport = useMemo(() => {
+    const scopeDs = db.getAllScopeDatasets();
+    if (!scopeDs || scopeDs.length === 0) {
+      return 'None (System in Empty State - Upload Excel files to populate metrics)';
     }
-    const latest = snaps.find(s => s.snapshot_date === asOfDate) || snaps[snaps.length - 1];
-    const filesList = (latest.source_files && latest.source_files.length > 0)
-      ? latest.source_files.join(', ')
-      : 'Uploaded_File.xlsx';
-    const formattedTime = latest.uploaded_at ? new Date(latest.uploaded_at).toLocaleString() : 'Recent';
-
-    return {
-      files: filesList,
-      snapshotDate: latest.snapshot_date,
-      uploadTime: formattedTime,
-    };
-  }, [asOfDate, refreshKey]);
+    return scopeDs.map(ds => {
+      const acvStr = ds.totalAcv > 0 ? `, $${(ds.totalAcv / 1e6).toFixed(2)}M` : '';
+      return `${ds.sourceFileName} [${ds.detectedType} • ${ds.scope}: ${ds.rowCount} rows${acvStr}]`;
+    }).join('  |  ');
+  }, [refreshKey]);
 
   // Auto-load 4 primary workspace Excel files on initial startup if database is empty
   useEffect(() => {
@@ -305,8 +294,8 @@ export const AppShell: React.FC = () => {
       />
 
       {/* Global Footer Source Attribution */}
-      <footer className="bg-white border-t border-slate-200 py-3 px-6 text-center text-xs font-mono text-slate-500">
-        Data from: <span className="font-bold text-slate-800">{snapshotInfo.files}</span>, snapshot <span className="font-bold text-slate-800">{snapshotInfo.snapshotDate}</span>, uploaded <span className="font-bold text-slate-800">{snapshotInfo.uploadTime}</span>
+      <footer className="bg-white border-t border-slate-200 py-3 px-6 text-center text-xs font-mono text-slate-500 overflow-x-auto">
+        Active Page Files: <span className="font-bold text-slate-800">{activeFilesReport}</span>
       </footer>
 
     </div>

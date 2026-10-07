@@ -6,8 +6,11 @@ import { db } from './database';
  * if no user snapshot currently exists in memory or storage.
  */
 export async function loadDefaultWorkspaceExcelFiles(snapshotDate: string = '2026-10-06'): Promise<void> {
+  if (typeof window !== 'undefined' && localStorage.getItem('renewiq_user_cleared') === 'true') {
+    return;
+  }
   const existingOpps = db.getOpportunitiesForDate(snapshotDate);
-  if (existingOpps.length > 0) {
+  if (existingOpps.length > 0 || db.getAllScopeDatasets().length > 0) {
     return;
   }
 

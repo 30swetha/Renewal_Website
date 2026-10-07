@@ -88,7 +88,9 @@ export function ingestSnapshot(
   snapshotDate: string,
   rawOpps: RawOpportunityInput[],
   sourceFiles: string[] = ['Uploaded_File.xlsx'],
-  scope: string = 'Fiscal Q4'
+  scope: string = 'Fiscal Q4',
+  detectedType: 'Summary workbook' | 'Comparison tool file' | 'CSV Dataset' | 'Excel Dataset' = 'Summary workbook',
+  namedSheets: Record<string, any[]> = {}
 ): {
   snapshot: SnapshotRecord;
   opps: OpportunitySnapshotRecord[];
@@ -147,6 +149,21 @@ export function ingestSnapshot(
 
   // Save snapshot & opps into database under snapshotDate
   db.saveSnapshot(snapshotRecord, oppRecords);
+
+  const totalAcv = oppRecords.reduce((s, o) => s + o.acv_amount, 0);
+
+  db.saveScopeDataset({
+    id: `DS-${scopeKey}`,
+    snapshotDate,
+    scope,
+    detectedType,
+    sourceFileName: sourceFiles[0] || 'Uploaded_File.xlsx',
+    uploadedAt: new Date().toISOString(),
+    opps: oppRecords,
+    namedSheets,
+    rowCount: oppRecords.length,
+    totalAcv,
+  });
 
   // 3. Find Previous Snapshot for Auto-Building Change Log
   const allSnapshots = db.getSnapshots();
@@ -241,7 +258,6 @@ export function ingestSnapshot(
   db.saveChangeLog(snapshotDate, changeLogs);
 
   // 4. Build Daily Summaries
-  const totalAcv = oppRecords.reduce((sum, o) => sum + o.acv_amount, 0);
   const closedAcv = oppRecords.filter(o => o.forecast_category === 'Closed').reduce((sum, o) => sum + o.acv_amount, 0);
   const commitAcv = oppRecords.filter(o => o.forecast_category === 'Commit').reduce((sum, o) => sum + o.acv_amount, 0);
   const bestCaseAcv = oppRecords.filter(o => o.forecast_category === 'Best Case').reduce((sum, o) => sum + o.acv_amount, 0);
@@ -274,8 +290,10 @@ export function ingestSnapshot(
 export interface IndividualFileResult {
   fileName: string;
   detectedType: 'Summary workbook' | 'Comparison tool file' | 'CSV Dataset' | 'Excel Dataset' | 'Unrecognised file layout';
-  detectedScope: 'Fiscal 2026' | 'Fiscal 2027' | 'Fiscal Q4' | 'Comparison' | 'Unknown';
+  detectedScope: 'Fiscal Q4' | 'Fiscal 2026' | 'Fiscal 2027' | 'Comparison' | 'Unknown';
   rowCount: number;
+  totalAcv: number;
+  formattedAcv: string;
   success: boolean;
   message: string;
   missingColumns?: string[];
@@ -293,7 +311,6 @@ export interface MultiFileIngestResult {
 /**
  * Finds sheet by NAME (case-insensitive, space-trimmed). Never uses sheet position index.
  */
-
 function findSheetByName(sheetNames: string[], targetName: string): string | undefined {
   const normTarget = targetName.trim().toLowerCase();
   return sheetNames.find(s => s.trim().toLowerCase() === normTarget);
@@ -311,7 +328,7 @@ const REQUIRED_COLUMNS_SPEC = [
 ];
 
 /**
- * Parses and validates a single file in the batch
+ * Parses and validates a single file in the batch by its CONTENT (never by name)
  */
 async function processSingleFile(
   file: File,
@@ -331,8 +348,10 @@ async function processSingleFile(
         detectedType: 'Unrecognised file layout',
         detectedScope: 'Unknown',
         rowCount: 0,
+        totalAcv: 0,
+        formattedAcv: '$0.00M',
         success: false,
-        message: 'Uploaded file contains no readable sheets.',
+        message: `Validation Error in file '${fileName}': Workbook contains no readable sheets.`,
         sheetsFound: [],
       };
     }
@@ -344,21 +363,19 @@ async function processSingleFile(
       detectedType = 'CSV Dataset';
       targetSheetName = sheetNames[0] || 'CSV';
     } else {
-      // Flexible sheet detection: match standard sheet names or fallback to first sheet
+      // Content-based sheet detection (ignoring case and spaces)
       const todayDataSheet = findSheetByName(sheetNames, 'Today_Data');
       const todaySheet = findSheetByName(sheetNames, 'today');
+      const comparisonSheet = findSheetByName(sheetNames, 'comparison');
       const expiryFinalSheet = findSheetByName(sheetNames, 'Expiry_Final');
       const dataSheet = findSheetByName(sheetNames, 'Data') || findSheetByName(sheetNames, 'Sheet1');
 
-      if (todayDataSheet) {
+      if (todayDataSheet || expiryFinalSheet) {
         detectedType = 'Summary workbook';
-        targetSheetName = todayDataSheet;
-      } else if (todaySheet) {
+        targetSheetName = todayDataSheet || expiryFinalSheet || sheetNames[0];
+      } else if (todaySheet || comparisonSheet) {
         detectedType = 'Comparison tool file';
-        targetSheetName = todaySheet;
-      } else if (expiryFinalSheet) {
-        detectedType = 'Summary workbook';
-        targetSheetName = expiryFinalSheet;
+        targetSheetName = todaySheet || sheetNames[0];
       } else if (dataSheet) {
         detectedType = 'Excel Dataset';
         targetSheetName = dataSheet;
@@ -371,30 +388,16 @@ async function processSingleFile(
           detectedType: 'Unrecognised file layout',
           detectedScope: 'Unknown',
           rowCount: 0,
+          totalAcv: 0,
+          formattedAcv: '$0.00M',
           success: false,
-          message: `Unrecognised file layout. Sheets found in workbook: ${sheetNames.join(', ')}`,
+          message: `Validation Error in file '${fileName}': Required sheets for Summary workbook ('Today_Data', 'Yesterday_Data', 'Lastweek_Data', 'Expiry_Final') or Comparison tool ('today', 'yesterday', 'comparison', 'FinalChangeReport') were not found. Sheets found: ${sheetNames.join(', ')}`,
           sheetsFound: sheetNames,
         };
       }
     }
 
-    // Determine Scope
-    let detectedScope: IndividualFileResult['detectedScope'] = 'Fiscal Q4';
-    if (detectedType === 'Comparison tool file') {
-      detectedScope = 'Comparison';
-    } else {
-      // Detect scope from file name first
-      const lowerName = fileName.toLowerCase();
-      if (lowerName.includes('fiscal 2026') || (lowerName.includes('2026') && !lowerName.includes('2027') && !lowerName.includes('q4'))) {
-        detectedScope = 'Fiscal 2026';
-      } else if (lowerName.includes('fiscal 2027') || lowerName.includes('2027')) {
-        detectedScope = 'Fiscal 2027';
-      } else if (lowerName.includes('fiscal q4') || lowerName.includes('q4')) {
-        detectedScope = 'Fiscal Q4';
-      }
-    }
-
-    // Extract and store all named sheets into db for direct sheet reading
+    // Extract all named sheets
     const sheetsMap: Record<string, any[]> = {};
     sheetNames.forEach(sName => {
       const ws = workbook.Sheets[sName];
@@ -403,18 +406,18 @@ async function processSingleFile(
         sheetsMap[sName] = rows;
       }
     });
-    db.saveNamedSheets(snapshotDate, sheetsMap);
 
-    // Read target sheet
     const targetSheet = workbook.Sheets[targetSheetName];
     if (!targetSheet) {
       return {
         fileName,
         detectedType,
-        detectedScope,
+        detectedScope: 'Unknown',
         rowCount: 0,
+        totalAcv: 0,
+        formattedAcv: '$0.00M',
         success: false,
-        message: `Validation Error: Target sheet '${targetSheetName}' not found in workbook.`,
+        message: `Validation Error in file '${fileName}': Target sheet '${targetSheetName}' not found in workbook.`,
         sheetsFound: sheetNames,
       };
     }
@@ -424,16 +427,17 @@ async function processSingleFile(
       return {
         fileName,
         detectedType,
-        detectedScope,
+        detectedScope: 'Unknown',
         rowCount: 0,
+        totalAcv: 0,
+        formattedAcv: '$0.00M',
         success: false,
-        message: `Validation Error: Sheet '${targetSheetName}' has insufficient rows or is empty.`,
+        message: `Validation Error in file '${fileName}', sheet '${targetSheetName}': Sheet is empty or missing headers.`,
       };
     }
 
     const normStr = (str: any) => String(str || '').toLowerCase().trim().replace(/[\_\-\s]+/g, ' ');
 
-    // Scan top rows for header matching
     let headerRowIdx = -1;
     let headers: string[] = [];
 
@@ -459,7 +463,6 @@ async function processSingleFile(
 
     const normHeaders = headers.map(normStr);
 
-    // Validate Required Columns on Target Sheet
     const colIndexMap: Record<string, number> = {};
     const missingColumns: string[] = [];
 
@@ -482,15 +485,16 @@ async function processSingleFile(
       return {
         fileName,
         detectedType,
-        detectedScope,
+        detectedScope: 'Unknown',
         rowCount: 0,
+        totalAcv: 0,
+        formattedAcv: '$0.00M',
         success: false,
-        message: `Sheet '${targetSheetName}' missing required column(s): ${missingColumns.join(', ')}`,
+        message: `Validation Error in file '${fileName}', sheet '${targetSheetName}': Missing required column(s): ${missingColumns.join(', ')}. Available headers: ${headers.join(', ')}`,
         missingColumns,
       };
     }
 
-    // Parse data rows
     const parsedOpps: RawOpportunityInput[] = [];
 
     for (let r = headerRowIdx + 1; r < rawRows.length; r++) {
@@ -523,33 +527,65 @@ async function processSingleFile(
       return {
         fileName,
         detectedType,
-        detectedScope,
+        detectedScope: 'Unknown',
         rowCount: 0,
+        totalAcv: 0,
+        formattedAcv: '$0.00M',
         success: false,
-        message: `Sheet '${targetSheetName}' contains no valid data rows.`,
+        message: `Validation Error in file '${fileName}', sheet '${targetSheetName}': No valid data rows found.`,
       };
     }
 
-    // If scope was not derived from filename, derive from Fiscal Period values in dataset
-    if (detectedType !== 'Comparison tool file' && detectedScope === 'Fiscal Q4') {
-      const firstPeriod = parsedOpps[0]?.fiscal_period || '';
-      if (firstPeriod.includes('2027')) {
+    // Determine Scope STRICTLY BY CONTENT ("Fiscal Period" values in Today_Data)
+    let detectedScope: IndividualFileResult['detectedScope'] = 'Fiscal Q4';
+    if (detectedType === 'Comparison tool file') {
+      detectedScope = 'Comparison';
+    } else {
+      const periods = parsedOpps.map(o => String(o.fiscal_period || '').trim().toUpperCase());
+      const uniquePeriods = Array.from(new Set(periods.filter(Boolean)));
+      
+      const has2027Only = uniquePeriods.length > 0 && uniquePeriods.every(p => p.includes('2027'));
+      const has2026SingleQuarter = uniquePeriods.length === 1 && uniquePeriods[0].includes('2026');
+      const has2026MultipleQuarters = uniquePeriods.length > 1 && uniquePeriods.some(p => p.includes('2026'));
+
+      if (has2027Only) {
         detectedScope = 'Fiscal 2027';
-      } else if (firstPeriod.includes('2026') && !firstPeriod.includes('Q4')) {
+      } else if (has2026MultipleQuarters) {
         detectedScope = 'Fiscal 2026';
+      } else if (has2026SingleQuarter) {
+        const qMatch = uniquePeriods[0].match(/Q[1-4]/i);
+        if (qMatch) {
+          detectedScope = `Fiscal ${qMatch[0].toUpperCase()}` as any;
+        } else {
+          detectedScope = 'Fiscal Q4';
+        }
+      } else {
+        if (uniquePeriods.some(p => p.includes('Q4'))) detectedScope = 'Fiscal Q4';
+        else if (uniquePeriods.some(p => p.includes('2026'))) detectedScope = 'Fiscal 2026';
+        else if (uniquePeriods.some(p => p.includes('2027'))) detectedScope = 'Fiscal 2027';
       }
     }
 
-    // Save dataset for snapshotDate and detectedScope
-    ingestSnapshot(snapshotDate, parsedOpps, [fileName], detectedScope);
+    // Save as its own separate dataset (NEVER merged with other scopes!)
+    ingestSnapshot(snapshotDate, parsedOpps, [fileName], detectedScope, detectedType, sheetsMap);
+
+    const sumAcv = parsedOpps.reduce((sum, o) => {
+      let v = o.acv_amount;
+      if (typeof v === 'string') v = parseFloat(v.replace(/[^0-9.-]+/g, '')) || 0;
+      return sum + (Number(v) || 0);
+    }, 0);
+
+    const formattedAcv = `$${(sumAcv / 1e6).toFixed(2)}M`;
 
     return {
       fileName,
       detectedType,
       detectedScope,
       rowCount: parsedOpps.length,
+      totalAcv: sumAcv,
+      formattedAcv,
       success: true,
-      message: `Successfully validated & ingested ${parsedOpps.length} rows from sheet '${targetSheetName}'.`,
+      message: `Successfully identified as '${detectedType}' (Scope: '${detectedScope}') with ${parsedOpps.length} rows (${formattedAcv}).`,
     };
 
   } catch (err: any) {
@@ -558,8 +594,10 @@ async function processSingleFile(
       detectedType: 'Unrecognised file layout',
       detectedScope: 'Unknown',
       rowCount: 0,
+      totalAcv: 0,
+      formattedAcv: '$0.00M',
       success: false,
-      message: `File Processing Error: ${err.message || 'Failed to read file.'}`,
+      message: `File Processing Error in '${fileName}': ${err.message || 'Failed to read file.'}`,
     };
   }
 }
