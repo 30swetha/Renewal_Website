@@ -3,7 +3,6 @@ import * as XLSX from 'xlsx';
 import { db } from './database';
 import type { SnapshotRecord, OpportunitySnapshotRecord, ChangeLogRecord, DailySummaryRecord } from './database';
 
-
 export interface RawOpportunityInput {
   opportunity_id: string;
   opportunity_name?: string;
@@ -15,30 +14,37 @@ export interface RawOpportunityInput {
   region?: string;
   sub_region?: string;
   business_unit?: string;
+  close_date?: string;
+  fiscal_period?: string;
   [key: string]: any;
 }
 
 /**
  * Normalizes Approval Status per specification brief:
- * - "Pending-Approval" and "Pending Approval" -> "Pending Approval"
- * - Blank / empty / null -> "Blank"
- * - Approved / Approved-2nd / Rejected preserved
+ * - Replace every blank or empty [Opportunity Approval Status] with "Not yet proposed"
+ * - Trim spaces in all approval status values
+ * - Preserves Approved, Approved - 2nd, Pending Approval, Rejected
  */
 export function normalizeApprovalStatus(raw?: string): string {
   if (!raw || typeof raw !== 'string' || raw.trim() === '') {
-    return 'Blank';
+    return 'Not yet proposed';
   }
   const clean = raw.trim();
-  if (/^pending[-_\s]?approval$/i.test(clean)) {
+  const lower = clean.toLowerCase();
+  
+  if (lower === 'blank' || lower === 'none' || lower === 'yet to be proposed' || lower === 'not yet proposed') {
+    return 'Not yet proposed';
+  }
+  if (/^pending[-_\s]?approval$/i.test(clean) || lower.includes('pending')) {
     return 'Pending Approval';
   }
-  if (/^approved$/i.test(clean)) {
+  if (lower === 'approved' || lower === 'approval approved') {
     return 'Approved';
   }
-  if (/^approved[-_\s]?2nd$/i.test(clean)) {
-    return 'Approved-2nd';
+  if (lower.includes('2nd') || /^approved[-_\s]?2nd$/i.test(clean)) {
+    return 'Approved - 2nd';
   }
-  if (/^rejected$/i.test(clean)) {
+  if (/^rejected$/i.test(clean) || lower.includes('reject')) {
     return 'Rejected';
   }
   return clean;
@@ -59,7 +65,6 @@ export function normalizeForecastCategory(raw?: string): string {
 
 /**
  * Normalizes & splits Business Unit
- * Supports multi-value strings like "Enterprise; Mobility"
  */
 export function parseBusinessUnit(raw?: string): { primary: string; units: string[] } {
   if (!raw || typeof raw !== 'string' || raw.trim() === '') {
@@ -73,45 +78,46 @@ export function parseBusinessUnit(raw?: string): { primary: string; units: strin
 }
 
 /**
- * Ingests a dataset for a specific snapshot_date.
- * Re-uploading the same date replaces only that date.
+ * Ingests a dataset for a specific snapshot_date & scope.
+ * Re-uploading for the same date and scope replaces only that scope.
  */
 export function ingestSnapshot(
   snapshotDate: string,
   rawOpps: RawOpportunityInput[],
-  sourceFiles: string[] = ['Uploaded_File.xlsx']
+  sourceFiles: string[] = ['Uploaded_File.xlsx'],
+  scope: string = 'Fiscal Q4'
 ): {
   snapshot: SnapshotRecord;
   opps: OpportunitySnapshotRecord[];
   changeLogs: ChangeLogRecord[];
   dailySummaries: DailySummaryRecord[];
 } {
+  const scopeKey = `${snapshotDate}_${scope}`;
+
   // 1. Process & Normalize Opportunities
   const oppRecords: OpportunitySnapshotRecord[] = rawOpps.map((raw, index) => {
-    const oppId = String(raw.opportunity_id || raw['Opportunity ID'] || `OPP-${index + 1000}`);
-    const oppName = String(raw.opportunity_name || raw['Opportunity Name'] || raw['Account Name'] || `Opportunity ${oppId}`);
-    const accountName = String(raw.account_name || raw['Account Name'] || oppName);
+    const oppId = String(raw.opportunity_id || raw['Opportunity ID 18 Digit'] || raw['Opportunity ID'] || `OPP-${index + 1000}`).trim();
+    const oppName = String(raw.opportunity_name || raw['Opportunity Name'] || raw['Account Name'] || `Opportunity ${oppId}`).trim();
+    const accountName = String(raw.account_name || raw['Account Name'] || oppName).trim();
     
     // Parse numeric ACV
-    let rawAcv = raw.acv_amount !== undefined ? raw.acv_amount : raw['ACV Amount'] || raw['ACV'] || 0;
+    let rawAcv = raw.acv_amount !== undefined ? raw.acv_amount : raw['Forecast ACV Amount'] || raw['ACV Amount'] || raw['ACV'] || 0;
     if (typeof rawAcv === 'string') {
       rawAcv = parseFloat(rawAcv.replace(/[^0-9.-]+/g, '')) || 0;
     }
 
     const category = normalizeForecastCategory(raw.forecast_category || raw['Forecast Category']);
-    const approval = normalizeApprovalStatus(raw.approval_status || raw['Approval Status']);
-    const quarter = String(raw.expiry_quarter || raw['Expiry Quarter'] || raw['Service Expiry Quarter'] || 'Q3-2026');
-    const region = String(raw.region || raw['Region'] || 'Sub-Saharan Africa');
-    const subRegion = String(raw.sub_region || raw['Sub Region'] || raw['Sub-Region'] || region);
-    const bu = String(raw.business_unit || raw['Business Unit'] || raw['BU'] || 'Enterprise');
+    const approval = normalizeApprovalStatus(raw.approval_status || raw['Opportunity Approval Status'] || raw['Approval Status']);
+    const quarter = String(raw.fiscal_period || raw['Fiscal Period'] || raw.expiry_quarter || raw['Service Expiry Period'] || raw['Expiry Quarter'] || 'Q4-2026').trim();
+    const region = String(raw.region || raw['Region'] || 'Sub-Saharan Africa').trim();
+    const subRegion = String(raw.sub_region || raw['Sub Region'] || raw['Sub-Region'] || region).trim();
+    const bu = String(raw.business_unit || raw['Business Unit'] || raw['BU'] || 'Enterprise').trim();
 
     // Filter key attributes for json_data
     const jsonData = { ...raw };
-    delete (jsonData as any).opportunity_id;
-    delete (jsonData as any).opportunity_name;
 
     return {
-      id: `${snapshotDate}_${oppId}`,
+      id: `${scopeKey}_${oppId}`,
       snapshot_date: snapshotDate,
       opportunity_id: oppId,
       opportunity_name: oppName,
@@ -129,14 +135,14 @@ export function ingestSnapshot(
 
   // 2. Build Snapshot Record
   const snapshotRecord: SnapshotRecord = {
-    id: `SNAP-${snapshotDate}`,
+    id: `SNAP-${scopeKey}`,
     snapshot_date: snapshotDate,
     uploaded_at: new Date().toISOString(),
     source_files: sourceFiles,
     row_count: oppRecords.length,
   };
 
-  // Save snapshot & opps into database
+  // Save snapshot & opps into database under snapshotDate
   db.saveSnapshot(snapshotRecord, oppRecords);
 
   // 3. Find Previous Snapshot for Auto-Building Change Log
@@ -157,9 +163,8 @@ export function ingestSnapshot(
     oppRecords.forEach(curr => {
       const prev = prevMap.get(curr.opportunity_id);
       if (!prev) {
-        // NEW Opportunity
         changeLogs.push({
-          id: `LOG-${snapshotDate}-${curr.opportunity_id}-NEW`,
+          id: `LOG-${scopeKey}-${curr.opportunity_id}-NEW`,
           snapshot_date: snapshotDate,
           opportunity_id: curr.opportunity_id,
           opportunity_name: curr.opportunity_name,
@@ -170,10 +175,9 @@ export function ingestSnapshot(
           acv_diff: curr.acv_amount,
         });
       } else {
-        // MODIFIED ACV
         if (Math.abs(curr.acv_amount - prev.acv_amount) > 0.01) {
           changeLogs.push({
-            id: `LOG-${snapshotDate}-${curr.opportunity_id}-ACV`,
+            id: `LOG-${scopeKey}-${curr.opportunity_id}-ACV`,
             snapshot_date: snapshotDate,
             opportunity_id: curr.opportunity_id,
             opportunity_name: curr.opportunity_name,
@@ -184,10 +188,9 @@ export function ingestSnapshot(
             acv_diff: curr.acv_amount - prev.acv_amount,
           });
         }
-        // MODIFIED Category
         if (curr.forecast_category !== prev.forecast_category) {
           changeLogs.push({
-            id: `LOG-${snapshotDate}-${curr.opportunity_id}-CAT`,
+            id: `LOG-${scopeKey}-${curr.opportunity_id}-CAT`,
             snapshot_date: snapshotDate,
             opportunity_id: curr.opportunity_id,
             opportunity_name: curr.opportunity_name,
@@ -198,10 +201,9 @@ export function ingestSnapshot(
             acv_diff: 0,
           });
         }
-        // MODIFIED Approval Status
         if (curr.approval_status !== prev.approval_status) {
           changeLogs.push({
-            id: `LOG-${snapshotDate}-${curr.opportunity_id}-APP`,
+            id: `LOG-${scopeKey}-${curr.opportunity_id}-APP`,
             snapshot_date: snapshotDate,
             opportunity_id: curr.opportunity_id,
             opportunity_name: curr.opportunity_name,
@@ -219,7 +221,7 @@ export function ingestSnapshot(
     prevOpps.forEach(prev => {
       if (!currMap.has(prev.opportunity_id)) {
         changeLogs.push({
-          id: `LOG-${snapshotDate}-${prev.opportunity_id}-REM`,
+          id: `LOG-${scopeKey}-${prev.opportunity_id}-REM`,
           snapshot_date: snapshotDate,
           opportunity_id: prev.opportunity_id,
           opportunity_name: prev.opportunity_name,
@@ -235,7 +237,7 @@ export function ingestSnapshot(
 
   db.saveChangeLog(snapshotDate, changeLogs);
 
-  // 4. Build Daily Summaries for Fast Trend Calculations
+  // 4. Build Daily Summaries
   const totalAcv = oppRecords.reduce((sum, o) => sum + o.acv_amount, 0);
   const closedAcv = oppRecords.filter(o => o.forecast_category === 'Closed').reduce((sum, o) => sum + o.acv_amount, 0);
   const commitAcv = oppRecords.filter(o => o.forecast_category === 'Commit').reduce((sum, o) => sum + o.acv_amount, 0);
@@ -246,14 +248,14 @@ export function ingestSnapshot(
   const pendingAcv = oppRecords.filter(o => o.approval_status.includes('Pending')).reduce((sum, o) => sum + o.acv_amount, 0);
 
   const dailySummaries: DailySummaryRecord[] = [
-    { id: `SUM-${snapshotDate}-total`, snapshot_date: snapshotDate, metric: 'total_acv', dimension: 'grand_total', value: totalAcv },
-    { id: `SUM-${snapshotDate}-count`, snapshot_date: snapshotDate, metric: 'total_opps', dimension: 'grand_total', value: oppRecords.length },
-    { id: `SUM-${snapshotDate}-closed`, snapshot_date: snapshotDate, metric: 'closed_acv', dimension: 'category:Closed', value: closedAcv },
-    { id: `SUM-${snapshotDate}-commit`, snapshot_date: snapshotDate, metric: 'commit_acv', dimension: 'category:Commit', value: commitAcv },
-    { id: `SUM-${snapshotDate}-bestcase`, snapshot_date: snapshotDate, metric: 'bestcase_acv', dimension: 'category:Best Case', value: bestCaseAcv },
-    { id: `SUM-${snapshotDate}-pipeline`, snapshot_date: snapshotDate, metric: 'pipeline_acv', dimension: 'category:Pipeline', value: pipelineAcv },
-    { id: `SUM-${snapshotDate}-approved`, snapshot_date: snapshotDate, metric: 'approved_acv', dimension: 'approval:Approved', value: approvedAcv },
-    { id: `SUM-${snapshotDate}-pending`, snapshot_date: snapshotDate, metric: 'pending_acv', dimension: 'approval:Pending', value: pendingAcv },
+    { id: `SUM-${scopeKey}-total`, snapshot_date: snapshotDate, metric: 'total_acv', dimension: 'grand_total', value: totalAcv },
+    { id: `SUM-${scopeKey}-count`, snapshot_date: snapshotDate, metric: 'total_opps', dimension: 'grand_total', value: oppRecords.length },
+    { id: `SUM-${scopeKey}-closed`, snapshot_date: snapshotDate, metric: 'closed_acv', dimension: 'category:Closed', value: closedAcv },
+    { id: `SUM-${scopeKey}-commit`, snapshot_date: snapshotDate, metric: 'commit_acv', dimension: 'category:Commit', value: commitAcv },
+    { id: `SUM-${scopeKey}-bestcase`, snapshot_date: snapshotDate, metric: 'bestcase_acv', dimension: 'category:Best Case', value: bestCaseAcv },
+    { id: `SUM-${scopeKey}-pipeline`, snapshot_date: snapshotDate, metric: 'pipeline_acv', dimension: 'category:Pipeline', value: pipelineAcv },
+    { id: `SUM-${scopeKey}-approved`, snapshot_date: snapshotDate, metric: 'approved_acv', dimension: 'approval:Approved', value: approvedAcv },
+    { id: `SUM-${scopeKey}-pending`, snapshot_date: snapshotDate, metric: 'pending_acv', dimension: 'approval:Pending', value: pendingAcv },
   ];
 
   db.saveDailySummaries(snapshotDate, dailySummaries);
@@ -266,41 +268,150 @@ export function ingestSnapshot(
   };
 }
 
-export interface FileValidationResult {
+export interface IndividualFileResult {
+  fileName: string;
+  detectedType: 'Summary workbook' | 'Comparison tool file' | 'CSV Dataset' | 'Unrecognised file layout';
+  detectedScope: 'Fiscal 2026' | 'Fiscal 2027' | 'Fiscal Q4' | 'Comparison' | 'Unknown';
+  rowCount: number;
   success: boolean;
   message: string;
   missingColumns?: string[];
-  recordCount?: number;
-  snapshotDate?: string;
+  sheetsFound?: string[];
+}
+
+export interface MultiFileIngestResult {
+  overallSuccess: boolean;
+  processedDate: string;
+  successCount: number;
+  failureCount: number;
+  results: IndividualFileResult[];
 }
 
 /**
- * Validates file headers for required columns, parses data rows,
- * preserves yesterday's dataset for comparison, replaces target dataset,
- * and notifies listeners to refresh all tabs automatically.
+ * Finds sheet by NAME (case-insensitive, space-trimmed). Never uses sheet position index.
  */
-export async function validateAndIngestDailyFile(
+
+function findSheetByName(sheetNames: string[], targetName: string): string | undefined {
+  const normTarget = targetName.trim().toLowerCase();
+  return sheetNames.find(s => s.trim().toLowerCase() === normTarget);
+}
+
+const REQUIRED_COLUMNS_SPEC = [
+  { name: 'Opportunity ID 18 Digit', aliases: ['opportunity id 18 digit', 'opportunity id', 'opp id', 'id'] },
+  { name: 'Forecast ACV Amount', aliases: ['forecast acv amount', 'acv amount', 'acv', 'amount', 'val', 'forecast acv'] },
+  { name: 'Forecast Category', aliases: ['forecast category', 'category', 'status category'] },
+  { name: 'Opportunity Approval Status', aliases: ['opportunity approval status', 'approval status', 'approvalstatus', 'status'] },
+  { name: 'Business Unit', aliases: ['business unit', 'bu'] },
+  { name: 'Sub-Region', aliases: ['sub-region', 'sub region', 'region', 'area'] },
+  { name: 'Close Date', aliases: ['close date', 'service end date', 'service expiry date', 'end date', 'close_date'] },
+  { name: 'Fiscal Period', aliases: ['fiscal period', 'fiscalperiod', 'service expiry period', 'expiry quarter', 'period', 'quarter'] },
+];
+
+/**
+ * Parses and validates a single file in the batch
+ */
+async function processSingleFile(
   file: File,
   snapshotDate: string
-): Promise<FileValidationResult> {
-  if (!file) {
-    return { success: false, message: 'No file provided for upload.' };
-  }
+): Promise<IndividualFileResult> {
+  const fileName = file.name;
 
   try {
+    const isCsv = fileName.toLowerCase().endsWith('.csv');
     const arrayBuffer = await file.arrayBuffer();
     const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
-    
-    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-      return { success: false, message: 'Uploaded file contains no readable sheets.' };
+
+    const sheetNames = workbook.SheetNames || [];
+    if (sheetNames.length === 0 && !isCsv) {
+      return {
+        fileName,
+        detectedType: 'Unrecognised file layout',
+        detectedScope: 'Unknown',
+        rowCount: 0,
+        success: false,
+        message: 'Uploaded file contains no readable sheets.',
+        sheetsFound: [],
+      };
     }
 
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    let detectedType: IndividualFileResult['detectedType'] = 'Unrecognised file layout';
+    let targetSheetName = '';
 
+    if (isCsv) {
+      detectedType = 'CSV Dataset';
+      targetSheetName = sheetNames[0] || 'CSV';
+    } else {
+      // 1. Detect "Summary workbook" sheets: Today_Data, Yesterday_Data, Lastweek_Data, Expiry_Final
+      const hasTodayData = !!findSheetByName(sheetNames, 'Today_Data');
+      const hasYesterdayData = !!findSheetByName(sheetNames, 'Yesterday_Data');
+      const hasLastweekData = !!findSheetByName(sheetNames, 'Lastweek_Data');
+      const hasExpiryFinal = !!findSheetByName(sheetNames, 'Expiry_Final');
+
+      // 2. Detect "Comparison tool file" sheets: today, yesterday, comparison, FinalChangeReport
+      const hasToday = !!findSheetByName(sheetNames, 'today');
+      const hasYesterday = !!findSheetByName(sheetNames, 'yesterday');
+      const hasComparison = !!findSheetByName(sheetNames, 'comparison');
+      const hasFinalChangeReport = !!findSheetByName(sheetNames, 'FinalChangeReport');
+
+      if (hasTodayData && hasYesterdayData && hasLastweekData && hasExpiryFinal) {
+        detectedType = 'Summary workbook';
+        targetSheetName = findSheetByName(sheetNames, 'Today_Data')!;
+      } else if (hasToday && hasYesterday && hasComparison && hasFinalChangeReport) {
+        detectedType = 'Comparison tool file';
+        targetSheetName = findSheetByName(sheetNames, 'today')!;
+      } else {
+        return {
+          fileName,
+          detectedType: 'Unrecognised file layout',
+          detectedScope: 'Unknown',
+          rowCount: 0,
+          success: false,
+          message: `Unrecognised file layout. Sheets found in workbook: ${sheetNames.join(', ')}`,
+          sheetsFound: sheetNames,
+        };
+      }
+    }
+
+    // Determine Scope
+    let detectedScope: IndividualFileResult['detectedScope'] = 'Fiscal Q4';
+    if (detectedType === 'Comparison tool file') {
+      detectedScope = 'Comparison';
+    } else {
+      // Detect scope from file name first
+      const lowerName = fileName.toLowerCase();
+      if (lowerName.includes('fiscal 2026') || (lowerName.includes('2026') && !lowerName.includes('2027') && !lowerName.includes('q4'))) {
+        detectedScope = 'Fiscal 2026';
+      } else if (lowerName.includes('fiscal 2027') || lowerName.includes('2027')) {
+        detectedScope = 'Fiscal 2027';
+      } else if (lowerName.includes('fiscal q4') || lowerName.includes('q4')) {
+        detectedScope = 'Fiscal Q4';
+      }
+    }
+
+    // Read target sheet
+    const targetSheet = workbook.Sheets[targetSheetName];
+    if (!targetSheet) {
+      return {
+        fileName,
+        detectedType,
+        detectedScope,
+        rowCount: 0,
+        success: false,
+        message: `Validation Error: Target sheet '${targetSheetName}' not found in workbook.`,
+        sheetsFound: sheetNames,
+      };
+    }
+
+    const rawRows: any[][] = XLSX.utils.sheet_to_json(targetSheet, { header: 1, defval: '' });
     if (!rawRows || rawRows.length < 2) {
-      return { success: false, message: 'Uploaded file has insufficient rows or is empty.' };
+      return {
+        fileName,
+        detectedType,
+        detectedScope,
+        rowCount: 0,
+        success: false,
+        message: `Validation Error: Sheet '${targetSheetName}' has insufficient rows or is empty.`,
+      };
     }
 
     const normStr = (str: any) => String(str || '').toLowerCase().trim().replace(/[\_\-\s]+/g, ' ');
@@ -331,108 +442,184 @@ export async function validateAndIngestDailyFile(
 
     const normHeaders = headers.map(normStr);
 
-    const findCol = (possibleNames: string[]): number => {
-      return normHeaders.findIndex(h => possibleNames.some(p => h.includes(normStr(p)) || normStr(p).includes(h)));
-    };
-
-    const oppIdCol = findCol(['opportunity id 18 digit', 'opportunity id', 'opp id', 'id']);
-    const acvCol = findCol(['forecast acv amount', 'acv amount', 'acv', 'amount', 'val']);
-    const catCol = findCol(['forecast category', 'category', 'status category']);
-
-    // Required Columns Validation: Opportunity ID, ACV Amount, Forecast Category
+    // Validate Required Columns on Target Sheet
+    const colIndexMap: Record<string, number> = {};
     const missingColumns: string[] = [];
-    if (oppIdCol === -1) missingColumns.push('Opportunity ID');
-    if (acvCol === -1) missingColumns.push('ACV Amount');
-    if (catCol === -1) missingColumns.push('Forecast Category');
+
+    REQUIRED_COLUMNS_SPEC.forEach(spec => {
+      let foundIdx = -1;
+      for (const alias of spec.aliases) {
+        const normAlias = normStr(alias);
+        foundIdx = normHeaders.findIndex(h => h === normAlias || h.includes(normAlias) || normAlias.includes(h));
+        if (foundIdx !== -1) break;
+      }
+
+      if (foundIdx === -1) {
+        missingColumns.push(spec.name);
+      } else {
+        colIndexMap[spec.name] = foundIdx;
+      }
+    });
 
     if (missingColumns.length > 0) {
       return {
+        fileName,
+        detectedType,
+        detectedScope,
+        rowCount: 0,
         success: false,
-        message: `Validation Error: Missing required column(s): ${missingColumns.join(', ')}. Please ensure your uploaded file contains columns for Opportunity ID, ACV Amount, and Forecast Category.`,
+        message: `Sheet '${targetSheetName}' missing required column(s): ${missingColumns.join(', ')}`,
         missingColumns,
       };
     }
 
-    // Optional columns
-    const nameCol = findCol(['opportunity name', 'account name', 'opp name', 'name']);
-    const accountCol = findCol(['account name', 'account']);
-    const statusCol = findCol(['approval status', 'approvalstatus', 'status']);
-    const quarterCol = findCol(['service expiry period', 'expiry quarter', 'period', 'quarter', 'fiscal period']);
-    const regionCol = findCol(['region', 'area']);
-    const subRegionCol = findCol(['sub-region', 'sub region']);
-    const buCol = findCol(['business unit', 'bu']);
-
+    // Parse data rows
     const parsedOpps: RawOpportunityInput[] = [];
 
     for (let r = headerRowIdx + 1; r < rawRows.length; r++) {
       const row = rawRows[r];
       if (!row || row.every((cell: any) => cell === '')) continue;
 
-      const oppId = String(row[oppIdCol] || '').trim();
+      const oppId = String(row[colIndexMap['Opportunity ID 18 Digit']] || '').trim();
       if (!oppId) continue;
+
+      const rawStatus = row[colIndexMap['Opportunity Approval Status']];
+      const cleanedStatus = normalizeApprovalStatus(rawStatus ? String(rawStatus) : '');
 
       parsedOpps.push({
         opportunity_id: oppId,
-        opportunity_name: nameCol !== -1 ? String(row[nameCol] || '').trim() : `Opportunity ${oppId}`,
-        account_name: accountCol !== -1 ? String(row[accountCol] || '').trim() : `Account ${oppId}`,
-        acv_amount: row[acvCol],
-        forecast_category: String(row[catCol] || 'Pipeline').trim(),
-        approval_status: statusCol !== -1 ? String(row[statusCol] || 'Blank').trim() : 'Blank',
-        expiry_quarter: quarterCol !== -1 ? String(row[quarterCol] || 'Q4-2026').trim() : 'Q4-2026',
-        region: regionCol !== -1 ? String(row[regionCol] || 'Sub-Saharan Africa').trim() : 'Sub-Saharan Africa',
-        sub_region: subRegionCol !== -1 ? String(row[subRegionCol] || '').trim() : '',
-        business_unit: buCol !== -1 ? String(row[buCol] || 'Enterprise').trim() : 'Enterprise',
+        opportunity_name: `Opportunity ${oppId}`,
+        account_name: `Account ${oppId}`,
+        acv_amount: row[colIndexMap['Forecast ACV Amount']],
+        forecast_category: normalizeForecastCategory(String(row[colIndexMap['Forecast Category']] || 'Pipeline')),
+        approval_status: cleanedStatus,
+        fiscal_period: String(row[colIndexMap['Fiscal Period']] || 'Q4-2026').trim(),
+        expiry_quarter: String(row[colIndexMap['Fiscal Period']] || 'Q4-2026').trim(),
+        region: String(row[colIndexMap['Sub-Region']] || 'Sub-Saharan Africa').trim(),
+        sub_region: String(row[colIndexMap['Sub-Region']] || '').trim(),
+        business_unit: String(row[colIndexMap['Business Unit']] || 'Enterprise').trim(),
+        close_date: String(row[colIndexMap['Close Date']] || '').trim(),
       });
     }
 
     if (parsedOpps.length === 0) {
       return {
+        fileName,
+        detectedType,
+        detectedScope,
+        rowCount: 0,
         success: false,
-        message: 'Validation Error: No valid opportunity rows found in the uploaded file.',
+        message: `Sheet '${targetSheetName}' contains no valid data rows.`,
       };
     }
 
-    // Save yesterday's dataset for comparison
-    const currentDateObj = new Date(snapshotDate);
-    const prevDateObj = new Date(currentDateObj);
-    prevDateObj.setDate(prevDateObj.getDate() - 1);
-    const yesterdayDate = prevDateObj.toISOString().split('T')[0];
-
-    const existingYesterdayOpps = db.getOpportunitiesForDate(yesterdayDate);
-    if (existingYesterdayOpps.length === 0) {
-      const activeSnaps = db.getSnapshots();
-      const currentBaselineDate = activeSnaps.length > 0 ? activeSnaps[0].snapshot_date : '2026-10-06';
-      const currentOpps = db.getOpportunitiesForDate(currentBaselineDate);
-      if (currentOpps.length > 0 && currentBaselineDate !== snapshotDate) {
-        db.saveSnapshot({
-          id: `SNAP-${yesterdayDate}`,
-          snapshot_date: yesterdayDate,
-          uploaded_at: new Date().toISOString(),
-          source_files: ['Baseline_Yesterday.xlsx'],
-          row_count: currentOpps.length,
-        }, currentOpps.map(o => ({ ...o, snapshot_date: yesterdayDate, id: `${yesterdayDate}_${o.opportunity_id}` })));
+    // If scope was not derived from filename, derive from Fiscal Period values in dataset
+    if (detectedType !== 'Comparison tool file' && detectedScope === 'Fiscal Q4') {
+      const firstPeriod = parsedOpps[0]?.fiscal_period || '';
+      if (firstPeriod.includes('2027')) {
+        detectedScope = 'Fiscal 2027';
+      } else if (firstPeriod.includes('2026') && !firstPeriod.includes('Q4')) {
+        detectedScope = 'Fiscal 2026';
       }
     }
 
-    // Replace dataset for target snapshotDate
-    ingestSnapshot(snapshotDate, parsedOpps, [file.name]);
-
-    // Dispatch event to refresh all tabs automatically
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('dataset-updated', { detail: { snapshotDate } }));
-    }
+    // Save dataset for snapshotDate and detectedScope
+    ingestSnapshot(snapshotDate, parsedOpps, [fileName], detectedScope);
 
     return {
+      fileName,
+      detectedType,
+      detectedScope,
+      rowCount: parsedOpps.length,
       success: true,
-      message: `Successfully ingested ${parsedOpps.length} opportunities for ${snapshotDate}. Yesterday's dataset saved for baseline comparison. All tabs refreshed!`,
-      recordCount: parsedOpps.length,
-      snapshotDate,
+      message: `Successfully validated & ingested ${parsedOpps.length} rows from sheet '${targetSheetName}'.`,
     };
+
   } catch (err: any) {
     return {
+      fileName,
+      detectedType: 'Unrecognised file layout',
+      detectedScope: 'Unknown',
+      rowCount: 0,
       success: false,
-      message: `File Processing Error: ${err.message || 'Failed to read or parse file.'}`,
+      message: `File Processing Error: ${err.message || 'Failed to read file.'}`,
     };
   }
 }
 
+/**
+ * Validates and ingests multiple files (up to 4) simultaneously.
+ * A failed file does not stop valid files from uploading.
+ */
+export async function validateAndIngestMultipleFiles(
+  files: File[],
+  snapshotDate: string
+): Promise<MultiFileIngestResult> {
+  if (!files || files.length === 0) {
+    return {
+      overallSuccess: false,
+      processedDate: snapshotDate,
+      successCount: 0,
+      failureCount: 0,
+      results: [],
+    };
+  }
+
+  // Ensure yesterday snapshot exists for baseline comparison
+  const currentDateObj = new Date(snapshotDate);
+  const prevDateObj = new Date(currentDateObj);
+  prevDateObj.setDate(prevDateObj.getDate() - 1);
+  const yesterdayDate = prevDateObj.toISOString().split('T')[0];
+
+  const existingYesterdayOpps = db.getOpportunitiesForDate(yesterdayDate);
+  if (existingYesterdayOpps.length === 0) {
+    const activeSnaps = db.getSnapshots();
+    const currentBaselineDate = activeSnaps.length > 0 ? activeSnaps[0].snapshot_date : '2026-10-06';
+    const currentOpps = db.getOpportunitiesForDate(currentBaselineDate);
+    if (currentOpps.length > 0 && currentBaselineDate !== snapshotDate) {
+      db.saveSnapshot({
+        id: `SNAP-${yesterdayDate}`,
+        snapshot_date: yesterdayDate,
+        uploaded_at: new Date().toISOString(),
+        source_files: ['Baseline_Yesterday.xlsx'],
+        row_count: currentOpps.length,
+      }, currentOpps.map(o => ({ ...o, snapshot_date: yesterdayDate, id: `${yesterdayDate}_${o.opportunity_id}` })));
+    }
+  }
+
+  // Process files concurrently up to 4
+  const fileSlice = files.slice(0, 4);
+  const results = await Promise.all(fileSlice.map(f => processSingleFile(f, snapshotDate)));
+
+  const successCount = results.filter(r => r.success).length;
+  const failureCount = results.filter(r => !r.success).length;
+
+  // Refresh tabs if at least one file succeeded
+  if (successCount > 0 && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('dataset-updated', { detail: { snapshotDate } }));
+  }
+
+  return {
+    overallSuccess: successCount > 0,
+    processedDate: snapshotDate,
+    successCount,
+    failureCount,
+    results,
+  };
+}
+
+// Backward-compatible wrapper for single file callers
+export async function validateAndIngestDailyFile(
+  file: File,
+  snapshotDate: string
+) {
+  const multiRes = await validateAndIngestMultipleFiles([file], snapshotDate);
+  const single = multiRes.results[0];
+  return {
+    success: single ? single.success : false,
+    message: single ? single.message : 'No file processed',
+    missingColumns: single?.missingColumns,
+    recordCount: single?.rowCount,
+    snapshotDate,
+  };
+}
