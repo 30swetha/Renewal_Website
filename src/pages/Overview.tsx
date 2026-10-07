@@ -10,8 +10,9 @@ import {
   Globe2,
   Clock
 } from 'lucide-react';
-import { formatCurrencyM, useSharedDatasets, type SharedOpportunity } from '../lib/sharedDataLayer';
+import { formatCurrencyM, useSharedDatasets, getExpiryFinalRows, type SharedOpportunity } from '../lib/sharedDataLayer';
 import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
+import { EmptyState } from '../components/ui/EmptyState';
 
 // Fixed 6 regions in exact required order
 export const FIXED_REGIONS = [
@@ -84,6 +85,13 @@ export const OverviewPage: React.FC = () => {
   const q4Yesterday = useMemo(() => getQ4OnlyOpps(rawYesterday), [rawYesterday]);
   const q4Lastweek = useMemo(() => getQ4OnlyOpps(rawLastweek), [rawLastweek]);
 
+  if (rawToday.length === 0 || q4Today.length === 0) {
+    return <EmptyState title="Overview" />;
+  }
+
+  // Pre-calculated Expiry_Final sheet rows if uploaded
+  const expiryFinalRows = useMemo(() => getExpiryFinalRows(), []);
+
   // Check if any opp has an unmapped region
   const hasOtherRegion = useMemo(() => {
     return q4Today.some(o => normalizeRegionName(o.sub_region || o.region) === 'Other');
@@ -93,26 +101,47 @@ export const OverviewPage: React.FC = () => {
     return hasOtherRegion ? [...FIXED_REGIONS, 'Other' as const] : [...FIXED_REGIONS];
   }, [hasOtherRegion]);
 
-  // SECTION 1: Total Renewal Q4 ACV Value
-  const totalQ4AcvToday = useMemo(() => q4Today.reduce((s, o) => s + o.acv_amount, 0), [q4Today]);
+  // SECTION 1: Total Renewal Q4 ACV Value (Using Expiry_Final pre-calculated sheet values when uploaded)
+  const totalQ4AcvToday = useMemo(() => {
+    if (expiryFinalRows.length > 0) {
+      const sum = expiryFinalRows.reduce((s, r) => s + r.todayAmount, 0);
+      if (sum > 0) return sum;
+    }
+    return q4Today.reduce((s, o) => s + o.acv_amount, 0);
+  }, [q4Today, expiryFinalRows]);
+
   const totalQ4AcvYesterday = useMemo(() => q4Yesterday.reduce((s, o) => s + o.acv_amount, 0), [q4Yesterday]);
   const totalQ4AcvLastweek = useMemo(() => q4Lastweek.reduce((s, o) => s + o.acv_amount, 0), [q4Lastweek]);
 
-  const totalCountToday = q4Today.length;
+  const totalCountToday = useMemo(() => {
+    if (expiryFinalRows.length > 0) {
+      const sum = expiryFinalRows.reduce((s, r) => s + r.todayCount, 0);
+      if (sum > 0) return sum;
+    }
+    return q4Today.length;
+  }, [q4Today, expiryFinalRows]);
 
   // SECTION 2: Four Fixed Category Cards (Closed, Commit, Best Case, Pipeline)
   const getCategoryMetrics = (category: string) => {
+    const sheetRow = expiryFinalRows.find(r => r.category.toLowerCase() === category.toLowerCase());
     const tOpps = q4Today.filter(o => o.forecast_category === category);
     const yOpps = q4Yesterday.filter(o => o.forecast_category === category);
     const lwOpps = q4Lastweek.filter(o => o.forecast_category === category);
 
-    const tAcv = tOpps.reduce((s, o) => s + o.acv_amount, 0);
-    const yAcv = yOpps.reduce((s, o) => s + o.acv_amount, 0);
-    const lwAcv = lwOpps.reduce((s, o) => s + o.acv_amount, 0);
+    const tAcv = sheetRow && sheetRow.todayAmount > 0 ? sheetRow.todayAmount : tOpps.reduce((s, o) => s + o.acv_amount, 0);
+    const tCnt = sheetRow && sheetRow.todayCount > 0 ? sheetRow.todayCount : tOpps.length;
+
+    const yAcv = sheetRow && sheetRow.tyAmount !== undefined && sheetRow.tyAmount !== 0
+      ? tAcv - sheetRow.tyAmount 
+      : yOpps.reduce((s, o) => s + o.acv_amount, 0);
+
+    const lwAcv = sheetRow && sheetRow.tlwAmount !== undefined && sheetRow.tlwAmount !== 0
+      ? tAcv - sheetRow.tlwAmount
+      : lwOpps.reduce((s, o) => s + o.acv_amount, 0);
 
     return {
       todayAcv: tAcv,
-      todayCount: tOpps.length,
+      todayCount: tCnt,
       yesterdayAcv: yAcv,
       yesterdayCount: yOpps.length,
       lastweekAcv: lwAcv,

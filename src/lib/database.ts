@@ -69,26 +69,48 @@ class DatabaseStore {
       const rawSnaps = localStorage.getItem(STORAGE_KEYS.SNAPSHOTS);
       if (rawSnaps) {
         const parsed: SnapshotRecord[] = JSON.parse(rawSnaps);
-        parsed.forEach(s => this.snapshots.set(s.snapshot_date, s));
+        // Filter out legacy mock demo snapshots
+        parsed.forEach(s => {
+          const files = s.source_files || [];
+          const isMock = files.some(f => f.includes('Uploaded_File.xlsx') || f.includes('Mock') || f.includes('Sample'));
+          if (!isMock && files.length > 0) {
+            this.snapshots.set(s.snapshot_date, s);
+          }
+        });
       }
 
       const rawOpps = localStorage.getItem(STORAGE_KEYS.OPPORTUNITIES);
       if (rawOpps) {
         const parsed: Record<string, OpportunitySnapshotRecord[]> = JSON.parse(rawOpps);
-        Object.entries(parsed).forEach(([date, opps]) => this.opportunities.set(date, opps));
+        Object.entries(parsed).forEach(([date, opps]) => {
+          if (this.snapshots.has(date)) {
+            this.opportunities.set(date, opps);
+          }
+        });
       }
 
       const rawLogs = localStorage.getItem(STORAGE_KEYS.CHANGE_LOG);
       if (rawLogs) {
         const parsed: Record<string, ChangeLogRecord[]> = JSON.parse(rawLogs);
-        Object.entries(parsed).forEach(([date, logs]) => this.changeLogs.set(date, logs));
+        Object.entries(parsed).forEach(([date, logs]) => {
+          if (this.snapshots.has(date)) {
+            this.changeLogs.set(date, logs);
+          }
+        });
       }
 
       const rawSummaries = localStorage.getItem(STORAGE_KEYS.DAILY_SUMMARY);
       if (rawSummaries) {
         const parsed: Record<string, DailySummaryRecord[]> = JSON.parse(rawSummaries);
-        Object.entries(parsed).forEach(([date, sums]) => this.dailySummaries.set(date, sums));
+        Object.entries(parsed).forEach(([date, sums]) => {
+          if (this.snapshots.has(date)) {
+            this.dailySummaries.set(date, sums);
+          }
+        });
       }
+
+      // Sync cleaned state back to LocalStorage
+      this.saveToLocalStorage();
     } catch (e) {
       console.warn('LocalStorage load warning:', e);
     }
