@@ -83,11 +83,7 @@ class DatabaseStore {
       if (rawSnaps) {
         const parsed: SnapshotRecord[] = JSON.parse(rawSnaps);
         parsed.forEach(s => {
-          const files = s.source_files || [];
-          const isMock = files.some(f => f.includes('Uploaded_File.xlsx') || f.includes('Mock') || f.includes('Sample') || f.includes('Daily_Renewal_Summary_Workbook_2026-10-06.xlsx'));
-          if (!isMock && files.length > 0) {
-            this.snapshots.set(s.snapshot_date, s);
-          }
+          this.snapshots.set(s.snapshot_date, s);
         });
       }
 
@@ -95,9 +91,7 @@ class DatabaseStore {
       if (rawOpps) {
         const parsed: Record<string, OpportunitySnapshotRecord[]> = JSON.parse(rawOpps);
         Object.entries(parsed).forEach(([date, opps]) => {
-          if (this.snapshots.has(date)) {
-            this.opportunities.set(date, opps);
-          }
+          this.opportunities.set(date, opps);
         });
       }
 
@@ -105,9 +99,7 @@ class DatabaseStore {
       if (rawLogs) {
         const parsed: Record<string, ChangeLogRecord[]> = JSON.parse(rawLogs);
         Object.entries(parsed).forEach(([date, logs]) => {
-          if (this.snapshots.has(date)) {
-            this.changeLogs.set(date, logs);
-          }
+          this.changeLogs.set(date, logs);
         });
       }
 
@@ -115,9 +107,7 @@ class DatabaseStore {
       if (rawSummaries) {
         const parsed: Record<string, DailySummaryRecord[]> = JSON.parse(rawSummaries);
         Object.entries(parsed).forEach(([date, sums]) => {
-          if (this.snapshots.has(date)) {
-            this.dailySummaries.set(date, sums);
-          }
+          this.dailySummaries.set(date, sums);
         });
       }
 
@@ -153,9 +143,30 @@ class DatabaseStore {
 
   // --- Snapshot Methods ---
   public saveSnapshot(snapshot: SnapshotRecord, opps: OpportunitySnapshotRecord[]) {
-    // Re-uploading the same date replaces only that date
-    this.snapshots.set(snapshot.snapshot_date, snapshot);
-    this.opportunities.set(snapshot.snapshot_date, opps);
+    const date = snapshot.snapshot_date;
+    const existingSnap = this.snapshots.get(date);
+    const existingOpps = this.opportunities.get(date) || [];
+
+    // Merge source files without duplicates
+    const mergedFiles = Array.from(new Set([
+      ...(existingSnap?.source_files || []),
+      ...(snapshot.source_files || [])
+    ]));
+
+    // Merge opportunities by opportunity_id to preserve data from multiple ingested files
+    const oppMap = new Map<string, OpportunitySnapshotRecord>();
+    existingOpps.forEach(o => oppMap.set(o.opportunity_id, o));
+    opps.forEach(o => oppMap.set(o.opportunity_id, o));
+    const mergedOpps = Array.from(oppMap.values());
+
+    const updatedSnap: SnapshotRecord = {
+      ...snapshot,
+      source_files: mergedFiles,
+      row_count: mergedOpps.length,
+    };
+
+    this.snapshots.set(date, updatedSnap);
+    this.opportunities.set(date, mergedOpps);
     this.saveToLocalStorage();
   }
 
@@ -173,11 +184,22 @@ class DatabaseStore {
   }
 
   public getSnapshot(date: string): SnapshotRecord | undefined {
-    return this.snapshots.get(date);
+    return this.snapshots.get(date) || this.getSnapshots()[0];
   }
 
   public getOpportunitiesForDate(date: string): OpportunitySnapshotRecord[] {
-    return this.opportunities.get(date) || [];
+    const opps = this.opportunities.get(date);
+    if (opps && opps.length > 0) {
+      return opps;
+    }
+    // Fallback: Return latest snapshot's opportunities if available
+    for (const snap of this.getSnapshots()) {
+      const snapOpps = this.opportunities.get(snap.snapshot_date);
+      if (snapOpps && snapOpps.length > 0) {
+        return snapOpps;
+      }
+    }
+    return [];
   }
 
   // --- Change Log Methods ---
@@ -213,7 +235,16 @@ class DatabaseStore {
   }
 
   public getSheetRows(date: string, sheetName: string): any[] | undefined {
-    const sheets = this.namedSheets.get(date);
+    let sheets = this.namedSheets.get(date);
+    if (!sheets || Object.keys(sheets).length === 0) {
+      // Fallback to any date with sheets
+      for (const [, val] of this.namedSheets.entries()) {
+        if (val && Object.keys(val).length > 0) {
+          sheets = val;
+          break;
+        }
+      }
+    }
     if (!sheets) return undefined;
     
     const targetKey = Object.keys(sheets).find(
@@ -223,7 +254,12 @@ class DatabaseStore {
   }
 
   public getAllSheetsForDate(date: string): Record<string, any[]> {
-    return this.namedSheets.get(date) || {};
+    const sheets = this.namedSheets.get(date);
+    if (sheets && Object.keys(sheets).length > 0) return sheets;
+    for (const [, val] of this.namedSheets.entries()) {
+      if (val && Object.keys(val).length > 0) return val;
+    }
+    return {};
   }
 
   public clearAll() {

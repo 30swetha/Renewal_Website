@@ -14,6 +14,7 @@ import {
   BarChart2,
   FileSpreadsheet,
   Upload,
+  Trash2,
   X
 } from 'lucide-react';
 import { CommandPalette } from '../ui/CommandPalette';
@@ -30,6 +31,11 @@ export const AppShell: React.FC = () => {
   const [asOfDate, setAsOfDate] = useState('2026-10-06');
   const [compareDate, setCompareDate] = useState('Yesterday');
   const [loading, setLoading] = useState(true);
+
+  const handleCleanAllData = () => {
+    db.clearAll();
+    window.dispatchEvent(new Event('dataset-updated'));
+  };
 
   const refreshKey = useDatasetRefresh();
 
@@ -182,6 +188,16 @@ export const AppShell: React.FC = () => {
             >
               <Upload className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Upload Excel File</span>
+            </button>
+
+            {/* Clean All Data Button */}
+            <button
+              onClick={handleCleanAllData}
+              className="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 active:bg-rose-200 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              title="Clean all data to zero values"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Clean All Data</span>
             </button>
 
             {/* Command Palette Trigger */}

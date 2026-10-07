@@ -6,8 +6,8 @@ import { db } from './database';
  * if no user snapshot currently exists in memory or storage.
  */
 export async function loadDefaultWorkspaceExcelFiles(snapshotDate: string = '2026-10-06'): Promise<void> {
-  // If snapshots already exist, do not re-load default files
-  if (db.getSnapshots().length > 0) {
+  const existingOpps = db.getOpportunitiesForDate(snapshotDate);
+  if (existingOpps.length > 0) {
     return;
   }
 

@@ -181,18 +181,18 @@ export const OverviewPage: React.FC = () => {
       const totalSystem = regOpps.length;
       
       const approvedCount = regOpps.filter(o => {
-        const s = (o.approval_status || '').trim();
-        return s === 'Approved' || s.includes('2nd') || s.includes('Approved-2nd');
+        const s = (o.approval_status || '').trim().toLowerCase();
+        return s.includes('approved');
       }).length;
 
       const pendingCount = regOpps.filter(o => {
-        const s = (o.approval_status || '').trim();
-        return s.includes('Pending');
+        const s = (o.approval_status || '').trim().toLowerCase();
+        return s.includes('pending');
       }).length;
 
       const blanksCount = regOpps.filter(o => {
-        const s = (o.approval_status || '').trim();
-        return !s || s === 'Blank' || s === 'Empty' || s === 'None';
+        const s = (o.approval_status || '').trim().toLowerCase();
+        return !s || s === 'blank' || s === 'empty' || s === 'none' || s.includes('not yet proposed') || s.includes('yet to be proposed');
       }).length;
 
       return {
