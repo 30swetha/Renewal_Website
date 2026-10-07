@@ -12,6 +12,7 @@ import {
   Clock
 } from 'lucide-react';
 import { formatCurrencyM, useSharedDatasets, type SharedOpportunity } from '../lib/sharedDataLayer';
+import { ForecastCategoryMovementTable } from '../components/dashboard/ForecastCategoryMovementTable';
 
 // Fixed 6 regions in exact required order
 export const FIXED_REGIONS = [
@@ -492,6 +493,11 @@ export const OverviewPage: React.FC = () => {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* SECTION: Forecast Category & Approval Movement (Two Halves & Approval Table) */}
+      <section className="space-y-4">
+        <ForecastCategoryMovementTable />
       </section>
 
       {/* SECTION 4: Table Titled "Proposal Confirmation" */}

@@ -4,10 +4,16 @@
 import { ingestSnapshot } from './ingestService';
 import { db } from './database';
 
-export function seedStarterSnapshots() {
+export function seedStarterSnapshots(force = false) {
+  const isV3Seeded = typeof window !== 'undefined' && localStorage.getItem('renewiq_v3_movement_seeded');
   const existing = db.getSnapshots();
-  if (existing.length >= 3) {
+  
+  if (existing.length >= 3 && isV3Seeded && !force) {
     return; // Already seeded
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('renewiq_v3_movement_seeded', 'true');
   }
 
   const todayStr = '2026-10-06';
@@ -52,18 +58,56 @@ function generateMockOppsForDate(
   const result: any[] = [];
 
   if (baselineOpps && baselineOpps.length > 0) {
-    // Copy baseline with slight modifications
+    // Copy baseline with targeted movement transitions
     baselineOpps.forEach((b, idx) => {
       let acv = b.acv_amount;
       let cat = b.forecast_category;
       let app = b.approval_status;
+      let closeDate = b.close_date || '2026-11-15';
+      let fiscalPeriod = b.fiscal_period || b.expiry_quarter;
 
-      if (dateStr === '2026-10-06' && idx % 28 === 0) {
-        cat = 'Closed';
-        acv += 150000;
-      } else if (dateStr === '2026-10-06' && idx % 34 === 0) {
-        cat = 'Commit';
-        acv -= 70000;
+      // Only modify Q4 FY26 deals for targeted movement testing
+      const isQ4 = fiscalPeriod === 'Q4 2026' || fiscalPeriod === 'Q4-2026';
+
+      if (dateStr === '2026-10-06' && isQ4) {
+        // POSITIVE MOVEMENTS (Today vs Baseline)
+        if (idx % 37 === 3) {
+          // Pipeline to Best Case
+          cat = 'Best Case';
+        } else if (idx % 37 === 7) {
+          // Best Case to Commit
+          cat = 'Commit';
+        } else if (idx % 37 === 11) {
+          // Commit to Closed
+          cat = 'Closed';
+        }
+        // NEGATIVE MOVEMENTS
+        else if (idx % 37 === 15) {
+          // Commit to Best Case
+          cat = 'Best Case';
+        } else if (idx % 37 === 19) {
+          // Best Case to Pipeline
+          cat = 'Pipeline';
+        } else if (idx % 37 === 23) {
+          // Slippage to 2027
+          closeDate = '2027-03-15';
+          fiscalPeriod = 'Q1 2027';
+        }
+
+        // APPROVAL MOVEMENTS
+        if (idx % 29 === 2) {
+          app = 'Pending-Approval';
+        } else if (idx % 29 === 5) {
+          app = 'Approved';
+        } else if (idx % 29 === 8) {
+          app = 'Rejected';
+        } else if (idx % 29 === 12) {
+          app = 'Approved';
+        } else if (idx % 29 === 16) {
+          app = 'Blank';
+        } else if (idx % 29 === 20) {
+          app = 'Pending-Approval';
+        }
       }
 
       result.push({
@@ -71,6 +115,8 @@ function generateMockOppsForDate(
         acv_amount: acv,
         forecast_category: cat,
         approval_status: app,
+        close_date: closeDate,
+        fiscal_period: fiscalPeriod,
       });
     });
 
@@ -103,10 +149,26 @@ function generateMockOppsForDate(
     for (let i = 0; i < targetCount; i++) {
       const id = `006Qp00000jD${1000 + i}`;
       const q = quarters[i % quarters.length];
-      const cat = categories[i % categories.length];
-      const app = approvals[i % approvals.length];
+      let cat = categories[i % categories.length];
+      let app = approvals[i % approvals.length];
       const reg = regions[i % regions.length];
       const bu = bus[i % bus.length];
+
+      // Give specific baseline statuses for clear transitions
+      if (q === 'Q4 2026') {
+        if (i % 37 === 3) cat = 'Pipeline';
+        if (i % 37 === 7) cat = 'Best Case';
+        if (i % 37 === 11) cat = 'Commit';
+        if (i % 37 === 15) cat = 'Commit';
+        if (i % 37 === 19) cat = 'Best Case';
+
+        if (i % 29 === 2) app = 'Blank';
+        if (i % 29 === 5) app = 'Pending-Approval';
+        if (i % 29 === 8) app = 'Pending-Approval';
+        if (i % 29 === 12) app = 'Blank';
+        if (i % 29 === 16) app = 'Approved';
+        if (i % 29 === 20) app = 'Rejected';
+      }
 
       const serviceStart = q.includes('2027') ? '2027-01-01' : '2026-01-01';
       const serviceEnd = q.includes('2027') ? '2027-12-31' : '2026-12-31';

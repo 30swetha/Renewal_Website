@@ -1,23 +1,66 @@
 import React, { useState, useMemo } from 'react';
 import { 
+  TrendingUp, 
+  TrendingDown, 
   ArrowRight, 
-  AlertCircle, 
+  ShieldCheck, 
+  Sparkles, 
+  CheckCircle2, 
+  ChevronRight, 
   X, 
+  ExternalLink,
   Layers,
-  CheckCircle2,
-  XCircle,
-  GitCommit
+  Calendar,
+  AlertTriangle
 } from 'lucide-react';
-import { db } from '../../lib/database';
-import { formatCurrencyM, getSharedDataset } from '../../lib/sharedDataLayer';
-import { Badge } from '../ui/Badge';
+import { formatCurrencyM, useSharedDatasets, type SharedOpportunity } from '../../lib/sharedDataLayer';
 import { OpportunityDrawer } from '../ui/OpportunityDrawer';
 
-export interface MovementItem {
-  id: string;
-  label: string;
-  fromCat: string;
-  toCat: string;
+export type ComparisonPeriod = 'yesterday' | 'lastweek';
+
+/**
+ * Filter opportunities to Q4 Fiscal 2026 only
+ */
+function getQ4OnlyOpps(opps: SharedOpportunity[]): SharedOpportunity[] {
+  return opps.filter(o => {
+    const rawPeriod = String(
+      o.fiscal_period || 
+      (o.json_data && (o.json_data['Fiscal Period'] || o.json_data['Service Expiry Period'])) || 
+      o.expiry_quarter || 
+      ''
+    ).trim();
+
+    return (
+      rawPeriod === 'Q4 2026' || 
+      rawPeriod === 'Q4-2026' || 
+      rawPeriod.includes('Q4') ||
+      o.expiry_quarter.includes('Q4')
+    );
+  });
+}
+
+/**
+ * Canonical Approval Status normalization
+ */
+function getNormalizedApproval(statusStr?: string | null): 'Approved' | 'Pending Approval' | 'Blank' | 'Rejected' {
+  if (!statusStr) return 'Blank';
+  const s = statusStr.trim();
+  if (s === 'Approved' || s.includes('2nd') || s.includes('Approved-2nd') || s.includes('Approved - 2nd')) {
+    return 'Approved';
+  }
+  if (s.includes('Pending')) {
+    return 'Pending Approval';
+  }
+  if (s === 'Rejected') {
+    return 'Rejected';
+  }
+  return 'Blank';
+}
+
+export interface MovementDetailModalData {
+  title: string;
+  subtitle: string;
+  badgeColor: 'green' | 'red' | 'blue';
   count: number;
   totalAcv: number;
   opps: {
@@ -26,212 +69,217 @@ export interface MovementItem {
     account_name: string;
     region: string;
     acv_amount: number;
-    fromCategory: string;
-    toCategory: string;
-    acvDiff: number;
+    fromState: string;
+    toState: string;
   }[];
 }
 
-interface ForecastCategoryMovementTableProps {
-  todayDate?: string;
-  yesterdayDate?: string;
+export interface ForecastCategoryMovementTableProps {
   onSelectOpp?: (oppId: string) => void;
 }
 
 export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTableProps> = ({
-  todayDate = '2026-10-06',
-  yesterdayDate = '2026-10-05',
-  onSelectOpp,
+  onSelectOpp
 }) => {
-  const [activeModalRow, setActiveModalRow] = useState<MovementItem | null>(null);
+  const [period, setPeriod] = useState<ComparisonPeriod>('yesterday');
+  const [modalData, setModalData] = useState<MovementDetailModalData | null>(null);
   const [drawerOppId, setDrawerOppId] = useState<string | null>(null);
 
-  // Fetch opportunities from local DB with fallback to shared data layer
-  const todayOpps = useMemo(() => {
-    const opps = db.getOpportunitiesForDate(todayDate);
-    return opps.length > 0 ? opps : getSharedDataset(todayDate);
-  }, [todayDate]);
+  const { todayOpps: rawToday, yesterdayOpps: rawYesterday, lastweekOpps: rawLastweek } = useSharedDatasets();
 
-  const yesterdayOpps = useMemo(() => {
-    const opps = db.getOpportunitiesForDate(yesterdayDate);
-    return opps.length > 0 ? opps : getSharedDataset(yesterdayDate);
-  }, [yesterdayDate]);
+  // Scope to Q4 FY26 only
+  const q4Today = useMemo(() => getQ4OnlyOpps(rawToday), [rawToday]);
+  const q4Yesterday = useMemo(() => getQ4OnlyOpps(rawYesterday), [rawYesterday]);
+  const q4Lastweek = useMemo(() => getQ4OnlyOpps(rawLastweek), [rawLastweek]);
 
-  const hasYesterdayData = yesterdayOpps.length > 0;
+  // Selected baseline opps based on period toggle
+  const q4Baseline = period === 'yesterday' ? q4Yesterday : q4Lastweek;
+  const periodLabel = period === 'yesterday' ? 'vs Yesterday' : 'vs Last Week';
 
-  // Process today vs yesterday forecast category movements dynamically (Positive vs Negative)
-  const { positiveRows, negativeRows, positiveNet, negativeNet } = useMemo(() => {
-    if (!hasYesterdayData) {
-      return {
-        positiveRows: [],
-        negativeRows: [],
-        positiveNet: { count: 0, totalAcv: 0 },
-        negativeNet: { count: 0, totalAcv: 0 },
-      };
-    }
-
-    const yesterdayMap = new Map<string, any>();
-    yesterdayOpps.forEach(o => yesterdayMap.set(o.opportunity_id, o));
-
-    const todayMap = new Map<string, any>();
-    todayOpps.forEach(o => todayMap.set(o.opportunity_id, o));
-
-    const categoryRank: Record<string, number> = {
-      'Closed': 4,
-      'Commit': 3,
-      'Best Case': 2,
-      'Pipeline': 1,
-    };
-
-    // Positive Movement definitions (Left Side)
-    const posDefs: Array<{ id: string; label: string; fromCat: string; toCat: string; match: (f: string, t: string, d: number) => boolean }> = [
-      { id: 'closed_stay', label: 'Closed Retention', fromCat: 'Closed', toCat: 'Closed', match: (f, t, d) => f === 'Closed' && t === 'Closed' && Math.abs(d) <= 0.01 },
-      { id: 'commit_stay', label: 'Commit Retention', fromCat: 'Commit', toCat: 'Commit', match: (f, t, d) => f === 'Commit' && t === 'Commit' && Math.abs(d) <= 0.01 },
-      { id: 'bestcase_stay', label: 'Best Case Retention', fromCat: 'Best Case', toCat: 'Best Case', match: (f, t, d) => f === 'Best Case' && t === 'Best Case' && Math.abs(d) <= 0.01 },
-      { id: 'pipeline_stay', label: 'Pipeline Retention', fromCat: 'Pipeline', toCat: 'Pipeline', match: (f, t, d) => f === 'Pipeline' && t === 'Pipeline' && Math.abs(d) <= 0.01 },
-      { id: 'commit_to_closed', label: 'Commit to Closed', fromCat: 'Commit', toCat: 'Closed', match: (f, t) => f === 'Commit' && t === 'Closed' },
-      { id: 'bestcase_to_commit', label: 'Best Case to Commit', fromCat: 'Best Case', toCat: 'Commit', match: (f, t) => f === 'Best Case' && t === 'Commit' },
-      { id: 'pipeline_to_bestcase', label: 'Pipeline to Best Case', fromCat: 'Pipeline', toCat: 'Best Case', match: (f, t) => f === 'Pipeline' && t === 'Best Case' },
-      { id: 'pipeline_to_commit', label: 'Pipeline to Commit', fromCat: 'Pipeline', toCat: 'Commit', match: (f, t) => f === 'Pipeline' && t === 'Commit' },
-      { id: 'bestcase_to_closed', label: 'Best Case to Closed', fromCat: 'Best Case', toCat: 'Closed', match: (f, t) => f === 'Best Case' && t === 'Closed' },
-      { id: 'pipeline_to_closed', label: 'Pipeline to Closed', fromCat: 'Pipeline', toCat: 'Closed', match: (f, t) => f === 'Pipeline' && t === 'Closed' },
-      { id: 'new_deals', label: 'New Deals Added', fromCat: 'New Deal', toCat: 'Active', match: (f) => f === 'New Deal' || f === 'N/A' },
-      { id: 'acv_increase', label: 'ACV Increased', fromCat: 'Same Stage', toCat: 'ACV +', match: (f, t, d) => f === t && d > 0.01 },
-    ];
-
-    // Negative Movement definitions (Right Side)
-    const negDefs: Array<{ id: string; label: string; fromCat: string; toCat: string; match: (f: string, t: string, d: number) => boolean }> = [
-      { id: 'commit_to_bestcase', label: 'Commit to Best Case', fromCat: 'Commit', toCat: 'Best Case', match: (f, t) => f === 'Commit' && t === 'Best Case' },
-      { id: 'bestcase_to_pipeline', label: 'Best Case to Pipeline', fromCat: 'Best Case', toCat: 'Pipeline', match: (f, t) => f === 'Best Case' && t === 'Pipeline' },
-      { id: 'commit_to_pipeline', label: 'Commit to Pipeline', fromCat: 'Commit', toCat: 'Pipeline', match: (f, t) => f === 'Commit' && t === 'Pipeline' },
-      { id: 'closed_to_commit', label: 'Closed to Commit', fromCat: 'Closed', toCat: 'Commit', match: (f, t) => f === 'Closed' && t === 'Commit' },
-      { id: 'closed_to_bestcase', label: 'Closed to Best Case', fromCat: 'Closed', toCat: 'Best Case', match: (f, t) => f === 'Closed' && t === 'Best Case' },
-      { id: 'closed_to_pipeline', label: 'Closed to Pipeline', fromCat: 'Closed', toCat: 'Pipeline', match: (f, t) => f === 'Closed' && t === 'Pipeline' },
-      { id: 'removed_deals', label: 'Deals Slipped / Dropped', fromCat: 'Active', toCat: 'Slipped', match: (_, t) => t === 'Removed' || t === 'Slipped Out' },
-      { id: 'acv_decrease', label: 'ACV Decreased', fromCat: 'Same Stage', toCat: 'ACV -', match: (f, t, d) => f === t && d < -0.01 },
-    ];
-
-    const posItemsMap = new Map<string, MovementItem>();
-    posDefs.forEach(d => posItemsMap.set(d.id, { id: d.id, label: d.label, fromCat: d.fromCat, toCat: d.toCat, count: 0, totalAcv: 0, opps: [] }));
-
-    const negItemsMap = new Map<string, MovementItem>();
-    negDefs.forEach(d => negItemsMap.set(d.id, { id: d.id, label: d.label, fromCat: d.fromCat, toCat: d.toCat, count: 0, totalAcv: 0, opps: [] }));
-
-    const extraPosMap = new Map<string, MovementItem>();
-    const extraNegMap = new Map<string, MovementItem>();
-
-    // 1. Process Today Opps against Yesterday Baseline
-    todayOpps.forEach(toOpp => {
-      const fromOpp = yesterdayMap.get(toOpp.opportunity_id);
-      const fromCat = fromOpp ? (fromOpp.forecast_category || 'New Deal') : 'New Deal';
-      const toCat = toOpp.forecast_category;
-      const acvDiff = toOpp.acv_amount - (fromOpp ? fromOpp.acv_amount : 0);
-
-      const oppDetail = {
-        opportunity_id: toOpp.opportunity_id,
-        opportunity_name: toOpp.opportunity_name,
-        account_name: toOpp.account_name,
-        region: toOpp.region,
-        acv_amount: toOpp.acv_amount,
-        fromCategory: fromCat,
-        toCategory: toCat,
-        acvDiff,
-      };
-
-      // Try matching Positive Rules
-      let matched = false;
-      for (const d of posDefs) {
-        if (d.match(fromCat, toCat, acvDiff)) {
-          const item = posItemsMap.get(d.id)!;
-          item.count += 1;
-          item.totalAcv += (d.id === 'acv_increase' ? acvDiff : toOpp.acv_amount);
-          item.opps.push(oppDetail);
-          matched = true;
-          break;
-        }
-      }
-
-      // Try matching Negative Rules
-      if (!matched) {
-        for (const d of negDefs) {
-          if (d.match(fromCat, toCat, acvDiff)) {
-            const item = negItemsMap.get(d.id)!;
-            item.count += 1;
-            item.totalAcv += (d.id === 'acv_decrease' ? Math.abs(acvDiff) : toOpp.acv_amount);
-            item.opps.push(oppDetail);
-            matched = true;
-            break;
-          }
-        }
-      }
-
-      // Unmatched custom transition: classify dynamically
-      if (!matched) {
-        const fromRank = categoryRank[fromCat] || 0;
-        const toRank = categoryRank[toCat] || 0;
-        const isPos = toRank >= fromRank || acvDiff >= 0;
-
-        const dynId = `${fromCat}_to_${toCat}`;
-        const dynLabel = `${fromCat} to ${toCat}`;
-
-        const targetMap = isPos ? extraPosMap : extraNegMap;
-        const existing: MovementItem = targetMap.get(dynId) || { 
-          id: dynId, 
-          label: dynLabel, 
-          fromCat, 
-          toCat, 
-          count: 0, 
-          totalAcv: 0, 
-          opps: [] as MovementItem['opps'] 
-        };
-        existing.count += 1;
-        existing.totalAcv += toOpp.acv_amount;
-        existing.opps.push(oppDetail);
-        targetMap.set(dynId, existing);
-      }
-    });
-
-    // 2. Process Yesterday Opps missing today (Removed / Slipped Deals)
-    yesterdayOpps.forEach(fromOpp => {
-      if (!todayMap.has(fromOpp.opportunity_id)) {
-        const oppDetail = {
-          opportunity_id: fromOpp.opportunity_id,
-          opportunity_name: fromOpp.opportunity_name,
-          account_name: fromOpp.account_name,
-          region: fromOpp.region,
-          acv_amount: fromOpp.acv_amount,
-          fromCategory: fromOpp.forecast_category,
-          toCategory: 'Removed / Slipped',
-          acvDiff: -fromOpp.acv_amount,
-        };
-
-        const item = negItemsMap.get('removed_deals')!;
-        item.count += 1;
-        item.totalAcv += fromOpp.acv_amount;
-        item.opps.push(oppDetail);
-      }
-    });
-
-    // Filter out rows with 0 opps for clean display, or keep key retention rows
-    const posList = [...Array.from(posItemsMap.values()), ...Array.from(extraPosMap.values())]
-      .filter(r => r.count > 0);
-
-    const negList = [...Array.from(negItemsMap.values()), ...Array.from(extraNegMap.values())]
-      .filter(r => r.count > 0);
-
-    const pNetCount = posList.reduce((s, r) => s + r.count, 0);
-    const pNetAcv = posList.reduce((s, r) => s + r.totalAcv, 0);
-
-    const nNetCount = negList.reduce((s, r) => s + r.count, 0);
-    const nNetAcv = negList.reduce((s, r) => s + r.totalAcv, 0);
-
+  // SECTION: Highlighted Card labelled "Closed" with closed amount only
+  const closedCardData = useMemo(() => {
+    const closedOpps = q4Today.filter(o => o.forecast_category === 'Closed');
+    const closedAcv = closedOpps.reduce((s, o) => s + o.acv_amount, 0);
     return {
-      positiveRows: posList,
-      negativeRows: negList,
-      positiveNet: { count: pNetCount, totalAcv: pNetAcv },
-      negativeNet: { count: nNetCount, totalAcv: nNetAcv },
+      count: closedOpps.length,
+      acv: closedAcv,
     };
-  }, [todayOpps, yesterdayOpps, hasYesterdayData]);
+  }, [q4Today]);
+
+  // SECTION: Compute Positive and Negative Forecast Category Movements
+  const forecastMovements = useMemo(() => {
+    const baselineMap = new Map<string, SharedOpportunity>();
+    q4Baseline.forEach(o => baselineMap.set(o.opportunity_id, o));
+
+    const todayMap = new Map<string, SharedOpportunity>();
+    q4Today.forEach(o => todayMap.set(o.opportunity_id, o));
+
+    // Define Positive Movement Rows
+    const posRows = [
+      { id: 'pipeline_to_bestcase', label: 'Pipeline to Best Case', fromCat: 'Pipeline', toCat: 'Best Case' },
+      { id: 'bestcase_to_commit', label: 'Best Case to Commit', fromCat: 'Best Case', toCat: 'Commit' },
+      { id: 'commit_to_closed', label: 'Commit to Closed', fromCat: 'Commit', toCat: 'Closed' },
+    ];
+
+    // Define Negative Movement Rows
+    const negRows = [
+      { id: 'commit_to_bestcase', label: 'Commit to Best Case', fromCat: 'Commit', toCat: 'Best Case' },
+      { id: 'bestcase_to_pipeline', label: 'Best Case to Pipeline', fromCat: 'Best Case', toCat: 'Pipeline' },
+      { id: 'slippage_to_2027', label: 'Slippage to 2027', isSlippage: true },
+    ];
+
+    const posResult = posRows.map(row => {
+      const opps: MovementDetailModalData['opps'] = [];
+      q4Today.forEach(tOpp => {
+        const bOpp = baselineMap.get(tOpp.opportunity_id);
+        const bCat = bOpp ? bOpp.forecast_category : 'New';
+        if (bCat === row.fromCat && tOpp.forecast_category === row.toCat) {
+          opps.push({
+            opportunity_id: tOpp.opportunity_id,
+            opportunity_name: tOpp.opportunity_name,
+            account_name: tOpp.account_name,
+            region: tOpp.region,
+            acv_amount: tOpp.acv_amount,
+            fromState: bCat,
+            toState: tOpp.forecast_category,
+          });
+        }
+      });
+      return {
+        ...row,
+        count: opps.length,
+        totalAcv: opps.reduce((s, o) => s + o.acv_amount, 0),
+        opps,
+      };
+    });
+
+    const negResult = negRows.map(row => {
+      const opps: MovementDetailModalData['opps'] = [];
+      
+      if (row.isSlippage) {
+        // Find opps that were in Q4 2026 baseline, but in Today have close_date in 2027 or is_slipped_to_2027
+        rawToday.forEach(tOpp => {
+          const isSlippedNow = tOpp.is_slipped_to_2027 || tOpp.close_date.startsWith('2027');
+          if (isSlippedNow) {
+            const bOpp = baselineMap.get(tOpp.opportunity_id);
+            const wasInQ4 = bOpp ? (bOpp.fiscal_period.includes('Q4') || !bOpp.close_date.startsWith('2027')) : true;
+            if (wasInQ4) {
+              opps.push({
+                opportunity_id: tOpp.opportunity_id,
+                opportunity_name: tOpp.opportunity_name,
+                account_name: tOpp.account_name,
+                region: tOpp.region,
+                acv_amount: tOpp.acv_amount,
+                fromState: `Q4 2026 (${bOpp?.close_date || '2026'})`,
+                toState: `Slipped 2027 (${tOpp.close_date})`,
+              });
+            }
+          }
+        });
+      } else {
+        q4Today.forEach(tOpp => {
+          const bOpp = baselineMap.get(tOpp.opportunity_id);
+          const bCat = bOpp ? bOpp.forecast_category : 'New';
+          if (bCat === row.fromCat && tOpp.forecast_category === row.toCat) {
+            opps.push({
+              opportunity_id: tOpp.opportunity_id,
+              opportunity_name: tOpp.opportunity_name,
+              account_name: tOpp.account_name,
+              region: tOpp.region,
+              acv_amount: tOpp.acv_amount,
+              fromState: bCat,
+              toState: tOpp.forecast_category,
+            });
+          }
+        });
+      }
+
+      return {
+        ...row,
+        count: opps.length,
+        totalAcv: opps.reduce((s, o) => s + o.acv_amount, 0),
+        opps,
+      };
+    });
+
+    return { posResult, negResult };
+  }, [q4Today, q4Baseline, rawToday]);
+
+  // SECTION: Approval Movement Data calculation
+  const approvalMovements = useMemo(() => {
+    const baselineMap = new Map<string, SharedOpportunity>();
+    q4Baseline.forEach(o => baselineMap.set(o.opportunity_id, o));
+
+    const transitionsMap = new Map<string, MovementDetailModalData['opps']>();
+
+    q4Today.forEach(tOpp => {
+      const bOpp = baselineMap.get(tOpp.opportunity_id);
+      const fromStatus = getNormalizedApproval(bOpp?.approval_status);
+      const toStatus = getNormalizedApproval(tOpp.approval_status);
+
+      if (fromStatus !== toStatus) {
+        const key = `${fromStatus} → ${toStatus}`;
+        const existing = transitionsMap.get(key) || [];
+        existing.push({
+          opportunity_id: tOpp.opportunity_id,
+          opportunity_name: tOpp.opportunity_name,
+          account_name: tOpp.account_name,
+          region: tOpp.region,
+          acv_amount: tOpp.acv_amount,
+          fromState: fromStatus,
+          toState: toStatus,
+        });
+        transitionsMap.set(key, existing);
+      }
+    });
+
+    const rows: {
+      fromStatus: 'Approved' | 'Pending Approval' | 'Blank' | 'Rejected';
+      toStatus: 'Approved' | 'Pending Approval' | 'Blank' | 'Rejected';
+      label: string;
+      count: number;
+      totalAcv: number;
+      opps: MovementDetailModalData['opps'];
+    }[] = [];
+
+    transitionsMap.forEach((opps, key) => {
+      const [fromStatus, toStatus] = key.split(' → ') as [any, any];
+      rows.push({
+        fromStatus,
+        toStatus,
+        label: key,
+        count: opps.length,
+        totalAcv: opps.reduce((s, o) => s + o.acv_amount, 0),
+        opps,
+      });
+    });
+
+    // Sort rows by count descending
+    rows.sort((a, b) => b.count - a.count);
+
+    const totalCount = rows.reduce((s, r) => s + r.count, 0);
+    const totalAcv = rows.reduce((s, r) => s + r.totalAcv, 0);
+
+    return { rows, totalCount, totalAcv };
+  }, [q4Today, q4Baseline]);
+
+  const handleRowClick = (
+    title: string, 
+    subtitle: string, 
+    badgeColor: 'green' | 'red' | 'blue', 
+    count: number, 
+    totalAcv: number, 
+    opps: MovementDetailModalData['opps']
+  ) => {
+    setModalData({
+      title,
+      subtitle: `${subtitle} (${periodLabel})`,
+      badgeColor,
+      count,
+      totalAcv,
+      opps,
+    });
+  };
 
   const handleOppClick = (oppId: string) => {
     if (onSelectOpp) {
@@ -241,240 +289,410 @@ export const ForecastCategoryMovementTable: React.FC<ForecastCategoryMovementTab
     }
   };
 
-  if (!hasYesterdayData) {
-    return (
-      <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 text-amber-900 space-y-2 shadow-xs">
-        <div className="flex items-center gap-2">
-          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
-          <h3 className="font-extrabold text-sm">Forecast Movement Matrix Unavailable</h3>
-        </div>
-        <p className="text-xs text-amber-700 leading-relaxed">
-          Yesterday's baseline dataset is missing. Upload or seed baseline data to calculate stage progression matrix.
-        </p>
-      </div>
-    );
-  }
-
-  // Render pill row item matching the screenshot design
-  const renderPillRow = (row: MovementItem, isPositive: boolean) => {
-    return (
-      <div 
-        key={row.id}
-        onClick={() => row.count > 0 && setActiveModalRow(row)}
-        className="p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-blue-400 hover:shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
-      >
-        {/* Left Side: Badges showing Stage Movement ([From] -> [To]) */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-indigo-100/80 text-indigo-900 border border-indigo-200/80 font-mono">
-            {row.fromCat.toUpperCase()}
-          </span>
-          <ArrowRight className="h-3.5 w-3.5 text-slate-400 shrink-0 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
-          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider font-mono ${
-            isPositive 
-              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-              : 'bg-red-100 text-red-900 border border-red-300'
-          }`}>
-            {row.toCat.toUpperCase()}
-          </span>
-        </div>
-
-        {/* Right Side: Total ACV Amount (Bold) & Opp Count below it */}
-        <div className="text-right shrink-0">
-          <div className={`font-black font-mono text-sm tracking-tight ${isPositive ? 'text-slate-900' : 'text-red-600'}`}>
-            {formatCurrencyM(row.totalAcv)}
-          </div>
-          <div className="text-[11px] text-slate-400 font-bold font-mono">
-            {row.count} {row.count === 1 ? 'opp' : 'opps'}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+    <div className="space-y-8">
       
-      {/* Card Header matching Screenshot */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
+      {/* SECTION HEADER & PERIOD TOGGLE BAR */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h3 className="font-black text-slate-900 text-base tracking-tight flex items-center gap-2">
-            <Layers className="h-4.5 w-4.5 text-blue-600" />
-            <span>Forecast Category Movement Matrix</span>
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Deals shifting across forecast stages since yesterday ({todayDate} vs {yesterdayDate})
+          <div className="flex items-center gap-2 text-blue-700 text-xs font-black uppercase tracking-wider">
+            <Layers className="h-4 w-4 text-blue-600" />
+            <span>Forecast Category & Approval Movement</span>
+          </div>
+          <h2 className="text-xl font-black text-slate-900 tracking-tight mt-0.5">
+            Q4 FY26 Opportunity Dynamics
+          </h2>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
+            Compare deal progression across Forecast Categories and Approval Statuses
           </p>
         </div>
 
-        {/* Top Right Pill Button matching Screenshot */}
-        <button 
-          onClick={() => setActiveModalRow(positiveRows[0] || negativeRows[0] || null)}
-          className="px-4 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 transition-colors shrink-0 flex items-center gap-1.5 shadow-2xs"
-        >
-          <GitCommit className="h-3.5 w-3.5 text-blue-600" />
-          <span>Sankey Stage Flows</span>
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          
+          {/* Highlighted Card labelled "Closed" with closed amount only */}
+          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-400 p-3 rounded-2xl shadow-xs flex items-center gap-3">
+            <div className="bg-emerald-600 text-white p-2 rounded-xl shadow-xs">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block">
+                Closed
+              </span>
+              <span className="text-lg font-black text-emerald-950 font-mono tracking-tight">
+                {formatCurrencyM(closedCardData.acv)}
+              </span>
+            </div>
+          </div>
+
+          {/* Period Comparison Toggle */}
+          <div className="bg-slate-100 p-1.5 rounded-2xl border border-slate-200 flex items-center gap-1">
+            <button
+              onClick={() => setPeriod('yesterday')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                period === 'yesterday'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-black'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5 text-blue-600" />
+              <span>vs Yesterday</span>
+            </button>
+            <button
+              onClick={() => setPeriod('lastweek')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                period === 'lastweek'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-black'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5 text-purple-600" />
+              <span>vs Last Week</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Two Columns Grid: Positive Movements (Left) vs Negative Movements (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* LEFT COLUMN: Positive / Profitable Movements */}
-        <div className="space-y-3">
-          <div className="bg-emerald-50 px-4 py-2.5 rounded-2xl border border-emerald-200 flex items-center justify-between text-emerald-950">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <h4 className="font-black text-xs uppercase tracking-wider">Positive / Advancement Changes</h4>
+      {/* FORECAST CATEGORY MOVEMENT - TWO HALVES */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* LEFT HALF: Positive (Green) */}
+        <div className="bg-white rounded-3xl border border-emerald-200 shadow-xs overflow-hidden flex flex-col justify-between">
+          <div className="bg-gradient-to-r from-emerald-50/80 to-teal-50/40 p-5 border-b border-emerald-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <TrendingUp className="h-4 w-4 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-emerald-950 uppercase tracking-wide">
+                  Positive Movements (Green)
+                </h3>
+                <p className="text-[11px] text-emerald-700 font-medium">
+                  Deals advancing up the forecast pipeline ({periodLabel})
+                </p>
+              </div>
             </div>
-            <span className="text-xs font-black font-mono text-emerald-800 bg-emerald-100/90 px-2.5 py-0.5 rounded-full border border-emerald-300">
-              {positiveNet.count} opps &bull; {formatCurrencyM(positiveNet.totalAcv)}
+            <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-mono font-black border border-emerald-200">
+              Positive
             </span>
           </div>
 
-          <div className="space-y-2.5">
-            {positiveRows.length > 0 ? (
-              positiveRows.map(row => renderPillRow(row, true))
-            ) : (
-              <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-slate-100 font-medium">
-                No positive movements recorded today
+          <div className="p-5 space-y-3.5">
+            {forecastMovements.posResult.map(row => (
+              <div
+                key={row.id}
+                onClick={() => handleRowClick(row.label, 'Positive Advancement', 'green', row.count, row.totalAcv, row.opps)}
+                className="group bg-emerald-50/40 hover:bg-emerald-100/60 border border-emerald-100 hover:border-emerald-300 p-4 rounded-2xl transition-all cursor-pointer flex items-center justify-between"
+              >
+                <div className="space-y-0.5">
+                  <div className="text-xs font-black text-slate-900 flex items-center gap-2">
+                    <span>{row.label}</span>
+                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0.5 rounded">
+                      + Positive
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    {row.fromCat} &rarr; {row.toCat}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <div className="text-sm font-black font-mono text-emerald-700">
+                      {formatCurrencyM(row.totalAcv)}
+                    </div>
+                    <div className="text-[10.5px] font-bold text-slate-500">
+                      {row.count} {row.count === 1 ? 'deal' : 'deals'}
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-emerald-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
-            )}
+            ))}
+          </div>
+
+          <div className="px-5 py-3 bg-emerald-50/30 border-t border-emerald-100 text-[11px] text-emerald-800 font-bold flex items-center justify-between">
+            <span>Total Positive Pipeline Advancement:</span>
+            <span className="font-mono font-black text-emerald-700">
+              {formatCurrencyM(forecastMovements.posResult.reduce((s, r) => s + r.totalAcv, 0))}
+            </span>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Negative / Slippage Movements */}
-        <div className="space-y-3">
-          <div className="bg-red-50 px-4 py-2.5 rounded-2xl border border-red-200 flex items-center justify-between text-red-950">
-            <div className="flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-red-600" />
-              <h4 className="font-black text-xs uppercase tracking-wider">Negative / Slippage Changes</h4>
+        {/* RIGHT HALF: Negative (Red) */}
+        <div className="bg-white rounded-3xl border border-red-200 shadow-xs overflow-hidden flex flex-col justify-between">
+          <div className="bg-gradient-to-r from-red-50/80 to-rose-50/40 p-5 border-b border-red-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-xl bg-red-100 text-red-700 flex items-center justify-center font-bold">
+                <TrendingDown className="h-4 w-4 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-red-950 uppercase tracking-wide">
+                  Negative Movements (Red)
+                </h3>
+                <p className="text-[11px] text-red-700 font-medium">
+                  Deals regressing or slipping into 2027 ({periodLabel})
+                </p>
+              </div>
             </div>
-            <span className="text-xs font-black font-mono text-red-800 bg-red-100/90 px-2.5 py-0.5 rounded-full border border-red-300">
-              {negativeNet.count} opps &bull; {formatCurrencyM(negativeNet.totalAcv)}
+            <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-800 text-[10px] font-mono font-black border border-red-200">
+              Negative / Slippage
             </span>
           </div>
 
-          <div className="space-y-2.5">
-            {negativeRows.length > 0 ? (
-              negativeRows.map(row => renderPillRow(row, false))
-            ) : (
-              <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-slate-100 font-medium">
-                No negative movements recorded today
+          <div className="p-5 space-y-3.5">
+            {forecastMovements.negResult.map(row => (
+              <div
+                key={row.id}
+                onClick={() => handleRowClick(row.label, row.isSlippage ? 'Delayed to FY27' : 'Category Regression', 'red', row.count, row.totalAcv, row.opps)}
+                className="group bg-red-50/40 hover:bg-red-100/60 border border-red-100 hover:border-red-300 p-4 rounded-2xl transition-all cursor-pointer flex items-center justify-between"
+              >
+                <div className="space-y-0.5">
+                  <div className="text-xs font-black text-slate-900 flex items-center gap-2">
+                    <span>{row.label}</span>
+                    <span className="text-[10px] text-red-700 font-bold bg-red-100 px-1.5 py-0.5 rounded">
+                      {row.isSlippage ? 'Slippage' : '- Regress'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    {row.isSlippage ? 'Q4 2026 -> Close Date 2027' : `${row.fromCat} \u2192 ${row.toCat}`}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <div className="text-sm font-black font-mono text-red-700">
+                      {formatCurrencyM(row.totalAcv)}
+                    </div>
+                    <div className="text-[10.5px] font-bold text-slate-500">
+                      {row.count} {row.count === 1 ? 'deal' : 'deals'}
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-red-400 group-hover:text-red-700 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
-            )}
+            ))}
+          </div>
+
+          <div className="px-5 py-3 bg-red-50/30 border-t border-red-100 text-[11px] text-red-800 font-bold flex items-center justify-between">
+            <span>Total Negative / Slipped Value:</span>
+            <span className="font-mono font-black text-red-700">
+              {formatCurrencyM(forecastMovements.negResult.reduce((s, r) => s + r.totalAcv, 0))}
+            </span>
           </div>
         </div>
 
       </div>
 
-      {/* Row Opportunity Detail Modal */}
-      {activeModalRow && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
+      {/* SECOND TABLE: APPROVAL MOVEMENT TABLE */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-2">
+          <div>
+            <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-blue-600" />
+              <span>Approval Movement Table</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Opportunity counts and ACV that moved between Approved, Pending Approval, Blank and Rejected ({periodLabel})
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono bg-blue-50 text-blue-800 border border-blue-200 px-3 py-1 rounded-full font-black">
+              {approvalMovements.totalCount} Status Changes ({formatCurrencyM(approvalMovements.totalAcv)})
+            </span>
+          </div>
+        </div>
+
+        {approvalMovements.rows.length === 0 ? (
+          <div className="py-8 text-center text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-slate-200/60">
+            No approval status movements recorded for the selected comparison period ({periodLabel}).
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-200 text-slate-800 font-black uppercase tracking-wider">
+                  <th className="py-3 px-4">From Approval Status</th>
+                  <th className="py-3 px-4">To Approval Status</th>
+                  <th className="py-3 px-4 text-center">Opportunity Count</th>
+                  <th className="py-3 px-4 text-right">ACV Value ($M)</th>
+                  <th className="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {approvalMovements.rows.map(row => (
+                  <tr
+                    key={row.label}
+                    onClick={() => handleRowClick(`Approval Transition: ${row.label}`, 'Approval Status Movement', 'blue', row.count, row.totalAcv, row.opps)}
+                    className="hover:bg-blue-50/50 transition-colors cursor-pointer"
+                  >
+                    <td className="py-3 px-4">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold border ${getStatusBadgeStyle(row.fromStatus)}`}>
+                        {row.fromStatus}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <ArrowRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold border ${getStatusBadgeStyle(row.toStatus)}`}>
+                          {row.toStatus}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 font-mono font-black text-center text-slate-900">
+                      {row.count}
+                    </td>
+                    <td className="py-3 px-4 font-mono font-black text-right text-blue-900">
+                      {formatCurrencyM(row.totalAcv)}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <button className="px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[11px] font-bold transition-colors inline-flex items-center gap-1">
+                        <span>View Deals</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-100 border-t-2 border-slate-300 font-black text-slate-900">
+                  <td colSpan={2} className="py-3.5 px-4 uppercase tracking-wider text-slate-700">
+                    Total Approval Movements
+                  </td>
+                  <td className="py-3.5 px-4 font-mono text-center text-slate-900 text-sm">
+                    {approvalMovements.totalCount}
+                  </td>
+                  <td className="py-3.5 px-4 font-mono text-right text-blue-950 text-sm">
+                    {formatCurrencyM(approvalMovements.totalAcv)}
+                  </td>
+                  <td className="py-3.5 px-4"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL: OPPORTUNITY MOVEMENT LIST MODAL */}
+      {modalData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
             
-            <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200">
-                    {activeModalRow.fromCat} &rarr; {activeModalRow.toCat}
-                  </span>
-                  <span className="text-xs font-extrabold text-slate-500 font-mono">
-                    ({activeModalRow.opps.length} Opportunities &bull; {formatCurrencyM(activeModalRow.totalAcv)})
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-900 text-white flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                    modalData.badgeColor === 'green' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                    modalData.badgeColor === 'red' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                    'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                  }`}>
+                    {modalData.subtitle}
                   </span>
                 </div>
-                <h3 className="text-base font-black text-slate-900 mt-0.5">
-                  Itemized Opportunities in this Movement Stage
+                <h3 className="text-lg font-black text-white leading-tight">
+                  {modalData.title}
                 </h3>
+                <p className="text-xs text-slate-300 mt-1">
+                  List of {modalData.count} opportunities totaling {formatCurrencyM(modalData.totalAcv)}
+                </p>
               </div>
 
               <button
-                onClick={() => setActiveModalRow(null)}
-                className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-200 rounded-xl transition-colors"
+                onClick={() => setModalData(null)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="overflow-y-auto p-5 space-y-3">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    <th className="py-2.5 px-3">Opportunity Name</th>
-                    <th className="py-2.5 px-3">Region</th>
-                    <th className="py-2.5 px-3">Stage Shift</th>
-                    <th className="py-2.5 px-3 text-right">ACV Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 text-xs">
-                  {activeModalRow.opps.map((opp) => (
-                    <tr
-                      key={opp.opportunity_id}
-                      onClick={() => handleOppClick(opp.opportunity_id)}
-                      className="hover:bg-blue-50/70 transition-colors cursor-pointer group"
-                    >
-                      <td className="py-3 px-3">
-                        <div className="font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">
-                          {opp.opportunity_name}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {opp.opportunity_id} &bull; {opp.account_name}
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 font-bold text-slate-700">
-                        {opp.region}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5 text-xs font-extrabold">
-                          <Badge variant={
-                            opp.fromCategory === 'Closed' ? 'closed' :
-                            opp.fromCategory === 'Commit' ? 'commit' :
-                            opp.fromCategory === 'Best Case' ? 'bestcase' : 'pipeline'
-                          }>
-                            {opp.fromCategory}
-                          </Badge>
-                          <ArrowRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                          <Badge variant={
-                            opp.toCategory === 'Closed' ? 'closed' :
-                            opp.toCategory === 'Commit' ? 'commit' :
-                            opp.toCategory === 'Best Case' ? 'bestcase' : 'pipeline'
-                          }>
-                            {opp.toCategory}
-                          </Badge>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-right font-black font-mono text-slate-900">
-                        {formatCurrencyM(opp.acv_amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Modal Content Table */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4 bg-slate-50">
+              {modalData.opps.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 font-medium text-xs">
+                  No opportunities found for this movement transition.
+                </div>
+              ) : (
+                <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-2xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase tracking-wider">
+                        <th className="py-3 px-4">Opportunity</th>
+                        <th className="py-3 px-4">Account</th>
+                        <th className="py-3 px-4">Region</th>
+                        <th className="py-3 px-4">Transition</th>
+                        <th className="py-3 px-4 text-right">ACV ($M)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {modalData.opps.map(opp => (
+                        <tr
+                          key={opp.opportunity_id}
+                          onClick={() => {
+                            setModalData(null);
+                            handleOppClick(opp.opportunity_id);
+                          }}
+                          className="hover:bg-blue-50/60 transition-colors cursor-pointer"
+                        >
+                          <td className="py-3 px-4 font-bold text-blue-900">
+                            <div>{opp.opportunity_name}</div>
+                            <div className="font-mono text-[10px] text-slate-400">{opp.opportunity_id}</div>
+                          </td>
+                          <td className="py-3 px-4 text-slate-700 font-medium">
+                            {opp.account_name}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            {opp.region}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-mono text-[11px] bg-slate-100 px-2 py-0.5 rounded text-slate-700 border border-slate-200">
+                              {opp.fromState} &rarr; {opp.toState}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-mono font-black text-right text-slate-900">
+                            {formatCurrencyM(opp.acv_amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium">Click any opportunity row to open full drawer details</span>
+            {/* Modal Footer */}
+            <div className="p-4 bg-white border-t border-slate-200 text-right">
               <button
-                onClick={() => setActiveModalRow(null)}
-                className="px-4 py-2 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
+                onClick={() => setModalData(null)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
               >
-                Close View
+                Close Window
               </button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* Fallback Drawer */}
-      {!onSelectOpp && (
-        <OpportunityDrawer
-          oppId={drawerOppId}
-          onClose={() => setDrawerOppId(null)}
-        />
-      )}
+      {/* OPPORTUNITY DETAIL DRAWER */}
+      <OpportunityDrawer
+        oppId={drawerOppId}
+        onClose={() => setDrawerOppId(null)}
+      />
 
     </div>
   );
 };
+
+function getStatusBadgeStyle(status: string): string {
+  switch (status) {
+    case 'Approved':
+      return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+    case 'Pending Approval':
+      return 'bg-amber-50 text-amber-800 border-amber-200';
+    case 'Rejected':
+      return 'bg-red-50 text-red-800 border-red-200';
+    default:
+      return 'bg-slate-100 text-slate-700 border-slate-200';
+  }
+}
 
 export default ForecastCategoryMovementTable;
