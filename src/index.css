@@ -21,7 +21,13 @@
     font-family: var(--font-sans);
     background-color: #f8fafc;
     color: #0f172a;
-    @apply antialiased selection:bg-blue-600 selection:text-white;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: #2563eb;
+    color: #ffffff;
   }
 }
 

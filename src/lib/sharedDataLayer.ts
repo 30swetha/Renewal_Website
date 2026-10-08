@@ -102,18 +102,35 @@ export function matchesGlobalFilters(opp: SharedOpportunity, filters?: GlobalHea
   if (f.quarter !== 'All') {
     const q = f.quarter.toUpperCase(); // e.g. 'Q4'
 
+    // Helper: derive quarter from month number
+    const monthToQ = (month: number): string => {
+      if (month >= 1 && month <= 3) return 'Q1';
+      if (month >= 4 && month <= 6) return 'Q2';
+      if (month >= 7 && month <= 9) return 'Q3';
+      return 'Q4';
+    };
+
+    // Helper: check if a period string contains Q4 by keywords (Oct/Nov/Dec)
+    const periodContainsQ4Keywords = (s: string): boolean => {
+      const sl = s.toLowerCase();
+      if (q === 'Q4') return sl.includes('oct') || sl.includes('nov') || sl.includes('dec') || sl.includes('q4');
+      if (q === 'Q3') return sl.includes('jul') || sl.includes('aug') || sl.includes('sep') || sl.includes('q3');
+      if (q === 'Q2') return sl.includes('apr') || sl.includes('may') || sl.includes('jun') || sl.includes('q2');
+      if (q === 'Q1') return sl.includes('jan') || sl.includes('feb') || sl.includes('mar') || sl.includes('q1');
+      return false;
+    };
+
     if (fp) {
-      const matchesFpQ = fp.includes(q);
+      // Try direct Q-string match first (e.g. 'Q4 2026', 'Q4-2026')
+      const matchesFpQ = fp.includes(q) || periodContainsQ4Keywords(fp);
       if (!matchesFpQ) return false;
     } else {
-      let matchesDateQ = false;
+      // Fall back to deriving quarter from date
       const d = closeDate || serviceEndDate;
+      let matchesDateQ = false;
       if (d && d.includes('-')) {
         const month = parseInt(d.split('-')[1] || '0', 10);
-        if (q === 'Q1' && month >= 1 && month <= 3) matchesDateQ = true;
-        if (q === 'Q2' && month >= 4 && month <= 6) matchesDateQ = true;
-        if (q === 'Q3' && month >= 7 && month <= 9) matchesDateQ = true;
-        if (q === 'Q4' && month >= 10 && month <= 12) matchesDateQ = true;
+        if (month > 0) matchesDateQ = monthToQ(month) === q;
       }
       if (!matchesDateQ) return false;
     }
